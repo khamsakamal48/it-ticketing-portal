@@ -13,6 +13,7 @@ import {
 } from "@/lib/queries";
 import { fmtIST } from "@/lib/datetime";
 import { decodeTicketId } from "@/lib/ticket-id";
+import { isHtmlBody, sanitizeEmailHtml } from "@/lib/sanitize-email";
 
 export const dynamic = "force-dynamic";
 
@@ -93,7 +94,14 @@ export default async function TicketDetail({ params }: { params: Promise<{ slug:
                       )}
                       <span>· {fmtIST(m.created_at)}</span>
                     </div>
-                    <div className="whitespace-pre-wrap leading-relaxed text-fg">{m.body}</div>
+                    {isHtmlBody(m.body) ? (
+                      <div
+                        className="email-html leading-relaxed text-fg"
+                        dangerouslySetInnerHTML={{ __html: sanitizeEmailHtml(m.body ?? "") }}
+                      />
+                    ) : (
+                      <div className="whitespace-pre-wrap leading-relaxed text-fg">{m.body}</div>
+                    )}
                   </div>
                 ))}
               </div>

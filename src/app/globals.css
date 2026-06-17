@@ -253,6 +253,34 @@ body > * {
   }
 }
 
+/* Rendered email HTML — constrain so untrusted markup stays inside its card */
+.email-html {
+  overflow-x: auto;
+  word-break: break-word;
+  font-size: 0.875rem;
+}
+.email-html img {
+  max-width: 100%;
+  height: auto;
+}
+.email-html a {
+  color: #0A84FF;
+  text-decoration: underline;
+}
+.email-html table {
+  max-width: 100%;
+  border-collapse: collapse;
+}
+.email-html blockquote {
+  margin: 0.5rem 0;
+  padding-left: 0.75rem;
+  border-left: 2px solid var(--border, #e5e7eb);
+  color: var(--muted, #6b7280);
+}
+.email-html p {
+  margin: 0.25rem 0;
+}
+
 /* Respect user motion preference */
 @media (prefers-reduced-motion: reduce) {
   *,
