@@ -130,7 +130,7 @@ export function NavShell({
     <div className="flex min-h-dvh">
       {/* Desktop sidebar */}
       <aside
-        className={`hidden flex-col border-r border-border bg-surface/60 backdrop-blur-xl transition-[width] duration-200 md:flex ${
+        className={`hidden flex-col border-r border-border bg-surface/60 backdrop-blur-xl transition-[width] duration-200 md:flex sticky top-0 h-dvh overflow-y-auto ${
           collapsed ? "w-[72px]" : "w-60"
         }`}
       >
