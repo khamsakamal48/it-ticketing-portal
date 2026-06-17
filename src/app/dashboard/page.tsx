@@ -143,15 +143,22 @@ export default async function DashboardPage({
                   </div>
                   <div className="space-y-1">
                     {tags.length === 0 && <p className="text-sm text-subtle">No tags in range.</p>}
-                    {tags.map((t) => (
-                      <div
-                        key={t.tag_name}
-                        className="flex items-center justify-between rounded-lg px-2 py-1.5 text-sm transition-colors hover:bg-surface-2"
-                      >
-                        <span className="text-muted">{t.tag_name}</span>
-                        <span className="badge bg-brand/10 text-brand tabular ring-1 ring-inset ring-brand/15">{t.count}</span>
-                      </div>
-                    ))}
+                    {tags
+                      .filter((t) => t.tag_name.toLowerCase() !== "ai")
+                      .map((t) => {
+                        const label = t.tag_name
+                          .replace(/_/g, " ")
+                          .replace(/\w\S*/g, (w) => w.charAt(0).toUpperCase() + w.slice(1).toLowerCase());
+                        return (
+                          <div
+                            key={t.tag_name}
+                            className="flex items-center justify-between rounded-lg px-2 py-1.5 text-sm transition-colors hover:bg-surface-2"
+                          >
+                            <span className="text-muted">{label}</span>
+                            <span className="badge bg-brand/10 text-brand tabular ring-1 ring-inset ring-brand/15">{t.count}</span>
+                          </div>
+                        );
+                      })}
                   </div>
                 </div>
               </>

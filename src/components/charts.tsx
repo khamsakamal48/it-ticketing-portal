@@ -32,6 +32,7 @@ function useTokens() {
       closed: t("--closed"),
       grid: `rgb(${cs.getPropertyValue("--border").trim()})`,
       axis: `rgb(${cs.getPropertyValue("--subtle").trim()})`,
+      fg: `rgb(${cs.getPropertyValue("--fg").trim()})`,
     };
   };
   const [tokens, setTokens] = useState<Record<string, string>>({});
@@ -44,12 +45,14 @@ function useTokens() {
   return tokens;
 }
 
-const STATUS_COLOR = (t: Record<string, string>): Record<string, string> => ({
-  open: t.open,
-  pending: t.pending,
-  resolved: t.resolved,
-  closed: t.closed,
-});
+// Skill leadership-deck vibrant palette for the status donut
+const SKILL_STATUS_COLORS: Record<string, { fill: string; glow: string; bg: string; text: string; border: string }> = {
+  open:     { fill: "#0A84FF", glow: "rgba(10,132,255,0.40)",  bg: "rgba(10,132,255,0.10)",  text: "#0A84FF", border: "rgba(10,132,255,0.25)"  },
+  pending:  { fill: "#FF9F0A", glow: "rgba(255,159,10,0.40)",  bg: "rgba(255,159,10,0.10)",  text: "#FF9F0A", border: "rgba(255,159,10,0.25)"  },
+  resolved: { fill: "#30D158", glow: "rgba(48,209,88,0.40)",   bg: "rgba(48,209,88,0.10)",   text: "#30D158", border: "rgba(48,209,88,0.25)"   },
+  closed:   { fill: "#BF5AF2", glow: "rgba(191,90,242,0.40)",  bg: "rgba(191,90,242,0.10)",  text: "#BF5AF2", border: "rgba(191,90,242,0.25)"  },
+};
+const SKILL_FALLBACK = { fill: "#5E5CE6", glow: "rgba(94,92,230,0.40)", bg: "rgba(94,92,230,0.10)", text: "#5E5CE6", border: "rgba(94,92,230,0.25)" };
 
 function ChartTooltip({ active, payload, label }: TooltipProps<number, string>) {
   if (!active || !payload?.length) return null;
@@ -158,8 +161,6 @@ export function TrendLine({ data }: { data: { day: string; count: number }[] }) 
 }
 
 export function StatusPie({ data }: { data: { name: string; value: number }[] }) {
-  const t = useTokens();
-  const colors = STATUS_COLOR(t);
   const total = data.reduce((s, d) => s + d.value, 0);
   if (!total) return <EmptyState msg="No tickets to break down." />;
   return (
@@ -167,29 +168,102 @@ export function StatusPie({ data }: { data: { name: string; value: number }[] })
       <div className="relative min-h-0 flex-1">
         <ResponsiveContainer width="100%" height="100%">
           <PieChart>
-            <Pie data={data} dataKey="value" nameKey="name" cx="50%" cy="50%" innerRadius={52} outerRadius={78} paddingAngle={2} stroke="none">
-              {data.map((d, i) => (
-                <Cell key={i} fill={colors[d.name] ?? t.pending} />
-              ))}
+            <defs>
+              {data.map((d) => {
+                const c = SKILL_STATUS_COLORS[d.name] ?? SKILL_FALLBACK;
+                return (
+                  <filter key={`glow-${d.name}`} id={`glow-${d.name}`} x="-30%" y="-30%" width="160%" height="160%">
+                    <feDropShadow dx="0" dy="0" stdDeviation="5" floodColor={c.fill} floodOpacity="0.55" />
+                  </filter>
+                );
+              })}
+            </defs>
+            <Pie
+              data={data}
+              dataKey="value"
+              nameKey="name"
+              cx="50%"
+              cy="50%"
+              innerRadius={74}
+              outerRadius={106}
+              paddingAngle={3}
+              stroke="none"
+            >
+              {data.map((d, i) => {
+                const c = SKILL_STATUS_COLORS[d.name] ?? SKILL_FALLBACK;
+                return <Cell key={i} fill={c.fill} filter={`url(#glow-${d.name})`} />;
+              })}
             </Pie>
             <Tooltip content={<ChartTooltip />} />
           </PieChart>
         </ResponsiveContainer>
-        {/* Center total */}
-        <div className="pointer-events-none absolute inset-0 flex flex-col items-center justify-center">
-          <span className="tabular text-2xl font-semibold text-fg">{total}</span>
-          <span className="text-xs text-subtle">total</span>
+
+        {/* Center: Apple-style big total + uppercase label */}
+        <div className="pointer-events-none absolute inset-0 flex flex-col items-center justify-center gap-0.5">
+          <span
+            style={{
+              fontSize: "32px",
+              fontWeight: 700,
+              letterSpacing: "-0.03em",
+              lineHeight: 1,
+              fontFamily: "-apple-system,BlinkMacSystemFont,'SF Pro Display','Helvetica Neue',Arial,sans-serif",
+              color: "rgb(var(--fg))",
+            }}
+          >
+            {total}
+          </span>
+          <span
+            style={{
+              fontSize: "9px",
+              fontWeight: 700,
+              letterSpacing: "0.16em",
+              textTransform: "uppercase",
+              color: "rgb(var(--subtle))",
+              fontFamily: "-apple-system,BlinkMacSystemFont,'SF Pro Display','Helvetica Neue',Arial,sans-serif",
+            }}
+          >
+            total
+          </span>
         </div>
       </div>
-      {/* Legend with values */}
-      <div className="mt-2 flex flex-wrap justify-center gap-x-4 gap-y-1">
-        {data.map((d) => (
-          <span key={d.name} className="flex items-center gap-1.5 text-xs text-muted">
-            <span className="dot" style={{ background: colors[d.name] ?? t.pending }} />
-            <span className="capitalize">{d.name}</span>
-            <span className="tabular font-medium text-fg">{d.value}</span>
-          </span>
-        ))}
+
+      {/* Skill-style pill legend */}
+      <div className="mt-3 flex flex-wrap justify-center gap-2">
+        {data.map((d) => {
+          const c = SKILL_STATUS_COLORS[d.name] ?? SKILL_FALLBACK;
+          return (
+            <span
+              key={d.name}
+              style={{
+                display: "inline-flex",
+                alignItems: "center",
+                gap: "5px",
+                padding: "3px 9px 3px 7px",
+                borderRadius: "999px",
+                background: c.bg,
+                border: `1px solid ${c.border}`,
+                fontSize: "11px",
+                fontWeight: 600,
+                color: c.text,
+                fontFamily: "-apple-system,BlinkMacSystemFont,'SF Pro Display','Helvetica Neue',Arial,sans-serif",
+              }}
+            >
+              <span
+                style={{
+                  display: "inline-block",
+                  width: "7px",
+                  height: "7px",
+                  borderRadius: "50%",
+                  background: c.fill,
+                  boxShadow: `0 0 6px ${c.glow}`,
+                  flexShrink: 0,
+                }}
+              />
+              <span style={{ textTransform: "capitalize" }}>{d.name}</span>
+              <span style={{ fontVariantNumeric: "tabular-nums", marginLeft: "2px", opacity: 0.85 }}>{d.value}</span>
+            </span>
+          );
+        })}
       </div>
     </div>
   );
@@ -209,7 +283,7 @@ export function AgentBars({ data }: { data: { agent: string; count: number }[] }
         </defs>
         <CartesianGrid strokeDasharray="3 3" stroke={t.grid} horizontal={false} />
         <XAxis type="number" tick={{ fontSize: 11, fill: t.axis }} stroke={t.grid} allowDecimals={false} />
-        <YAxis type="category" dataKey="agent" tick={{ fontSize: 11, fill: t.axis }} stroke={t.grid} width={90} />
+        <YAxis type="category" dataKey="agent" tick={{ fontSize: 13, fill: t.fg, fontWeight: 600 }} stroke={t.grid} width={100} />
         <Tooltip content={<ChartTooltip />} cursor={{ fill: t.grid, opacity: 0.4 }} />
         <Bar dataKey="count" name="Tickets" fill="url(#barGrad)" radius={[0, 6, 6, 0]} maxBarSize={22} />
       </BarChart>
