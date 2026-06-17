@@ -122,6 +122,163 @@ export async function getTopTags(f: TicketFilters) {
   );
 }
 
+// ---------------- Operational analytics (new section) ----------------
+// All reuse buildWhere so they react to the existing dashboard filters.
+// Note: like the rest of the dashboard, the date filter bounds on created_at.
+
+// Appends an extra condition onto a buildWhere clause (WHERE vs AND aware).
+function andClause(clause: string, extra: string): string {
+  return clause ? `${clause} AND ${extra}` : `WHERE ${extra}`;
+}
+
+// Inflow vs outflow per IST day. Created bucketed by created_at; closed
+// bucketed by updated_at (closure proxy) where status='closed'.
+export async function getFlowTrend(f: TicketFilters) {
+  const { clause, params } = buildWhere(f);
+  const closedClause = andClause(clause, "t.status = 'closed'");
+  return query<{ day: string; created: string; closed: string }>(
+    `SELECT day, SUM(created) AS created, SUM(closed) AS closed FROM (
+        SELECT to_char((t.created_at AT TIME ZONE 'Asia/Kolkata')::date, 'YYYY-MM-DD') AS day,
+               COUNT(*) AS created, 0 AS closed
+          FROM tickets t ${clause} GROUP BY 1
+        UNION ALL
+        SELECT to_char((t.updated_at AT TIME ZONE 'Asia/Kolkata')::date, 'YYYY-MM-DD') AS day,
+               0 AS created, COUNT(*) AS closed
+          FROM tickets t ${closedClause} GROUP BY 1
+     ) x GROUP BY day ORDER BY day`,
+    params
+  );
+}
+
+// Age distribution of currently-open tickets.
+export async function getAgingBuckets(f: TicketFilters) {
+  const { clause, params } = buildWhere(f);
+  const openClause = andClause(clause, "t.status = 'open'");
+  return query<{ bucket: string; count: string }>(
+    `SELECT bucket, COUNT(*) AS count FROM (
+        SELECT CASE
+                 WHEN now() - t.created_at < interval '1 day'  THEN '0-1d'
+                 WHEN now() - t.created_at < interval '3 days' THEN '1-3d'
+                 WHEN now() - t.created_at < interval '7 days' THEN '3-7d'
+                 ELSE '>7d'
+               END AS bucket
+          FROM tickets t ${openClause}
+     ) x GROUP BY bucket`,
+    params
+  );
+}
+
+// First-response time (first agent message − created_at): median + SLA %.
+export async function getResponseMetrics(f: TicketFilters, slaFirstResponseHours: number) {
+  const { clause, params } = buildWhere(f);
+  params.push(slaFirstResponseHours);
+  const slaP = `$${params.length}`;
+  const row = await query<{ median_first_response_h: string | null; fr_compliance_pct: string | null }>(
+    `WITH fr AS (
+        SELECT t.id,
+               EXTRACT(EPOCH FROM (
+                 MIN(m.created_at) FILTER (WHERE m.sender_type = 'agent') - t.created_at
+               )) / 3600 AS hrs
+          FROM tickets t
+          LEFT JOIN messages m ON m.ticket_id = t.id
+          ${clause}
+          GROUP BY t.id, t.created_at
+     )
+     SELECT percentile_cont(0.5) WITHIN GROUP (ORDER BY hrs) AS median_first_response_h,
+            ROUND(100.0 * COUNT(*) FILTER (WHERE hrs <= ${slaP})
+                  / NULLIF(COUNT(*), 0), 1)                  AS fr_compliance_pct
+       FROM fr WHERE hrs IS NOT NULL`,
+    params
+  );
+  return row[0];
+}
+
+// SLA compliance on resolution + count of open tickets breaching right now.
+export async function getSlaCompliance(f: TicketFilters, slaHours: number) {
+  const { clause, params } = buildWhere(f);
+  params.push(slaHours);
+  const slaP = `$${params.length}`;
+  const row = await query<{ resolved_within: string; total_closed: string; breaching_now: string }>(
+    `SELECT
+        COUNT(*) FILTER (
+          WHERE status = 'closed'
+            AND EXTRACT(EPOCH FROM (updated_at - created_at)) / 3600 <= ${slaP}
+        )                                                    AS resolved_within,
+        COUNT(*) FILTER (WHERE status = 'closed')            AS total_closed,
+        COUNT(*) FILTER (
+          WHERE status = 'open'
+            AND EXTRACT(EPOCH FROM (now() - created_at)) / 3600 > ${slaP}
+        )                                                    AS breaching_now
+       FROM tickets t ${clause}`,
+    params
+  );
+  return row[0];
+}
+
+// Net backlog change in range: created − closed.
+export async function getNetBacklog(f: TicketFilters) {
+  const { clause, params } = buildWhere(f);
+  const row = await query<{ created: string; closed: string }>(
+    `SELECT COUNT(*) AS created,
+            COUNT(*) FILTER (WHERE status = 'closed') AS closed
+       FROM tickets t ${clause}`,
+    params
+  );
+  return row[0];
+}
+
+export async function getIntentBreakdown(f: TicketFilters) {
+  const { clause, params } = buildWhere(f);
+  const intentClause = andClause(clause, "t.ai_intent IS NOT NULL");
+  return query<{ intent: string; count: string }>(
+    `SELECT t.ai_intent AS intent, COUNT(*) AS count
+       FROM tickets t ${intentClause}
+       GROUP BY t.ai_intent ORDER BY count DESC LIMIT 10`,
+    params
+  );
+}
+
+export async function getSentimentBreakdown(f: TicketFilters) {
+  const { clause, params } = buildWhere(f);
+  const sentClause = andClause(clause, "t.ai_sentiment IS NOT NULL");
+  return query<{ sentiment: string; count: string }>(
+    `SELECT t.ai_sentiment AS sentiment, COUNT(*) AS count
+       FROM tickets t ${sentClause}
+       GROUP BY t.ai_sentiment`,
+    params
+  );
+}
+
+// Per-agent throughput + quality: resolved count, avg resolution h, open load.
+export async function getAgentPerformance(f: TicketFilters) {
+  const { clause, params } = buildWhere(f);
+  return query<{ agent: string; resolved: string; avg_resolution_h: string | null; open_load: string }>(
+    `SELECT COALESCE(u.name, 'Unassigned') AS agent,
+            COUNT(*) FILTER (WHERE t.status = 'closed') AS resolved,
+            AVG(EXTRACT(EPOCH FROM (t.updated_at - t.created_at)) / 3600)
+              FILTER (WHERE t.status = 'closed')        AS avg_resolution_h,
+            COUNT(*) FILTER (WHERE t.status = 'open')   AS open_load
+       FROM tickets t
+       LEFT JOIN users u ON u.id = t.ticket_owner_id
+       ${clause}
+       GROUP BY 1 ORDER BY resolved DESC`,
+    params
+  );
+}
+
+// Heaviest individual reporters. Grouped by unique email, displayed by name.
+export async function getTopRequesters(f: TicketFilters) {
+  const { clause, params } = buildWhere(f);
+  return query<{ name: string; email: string; count: string }>(
+    `SELECT COALESCE(c.name, c.email) AS name, c.email, COUNT(*) AS count
+       FROM tickets t
+       JOIN contacts c ON c.id = t.contact_id
+       ${clause}
+       GROUP BY c.email, c.name ORDER BY count DESC LIMIT 10`,
+    params
+  );
+}
+
 // ---------------- Ticket list ----------------
 export interface TicketRow {
   id: number;

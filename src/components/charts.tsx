@@ -54,11 +54,31 @@ const SKILL_STATUS_COLORS: Record<string, { fill: string; glow: string; bg: stri
 };
 const SKILL_FALLBACK = { fill: "#5E5CE6", glow: "rgba(94,92,230,0.40)", bg: "rgba(94,92,230,0.10)", text: "#5E5CE6", border: "rgba(94,92,230,0.25)" };
 
+const MONTHS = ["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"];
+
+function formatDayTick(value: string): string {
+  const d = new Date(value);
+  if (isNaN(d.getTime())) return value;
+  const dd = String(d.getUTCDate()).padStart(2, "0");
+  const mmm = MONTHS[d.getUTCMonth()];
+  const yy = String(d.getUTCFullYear()).slice(-2);
+  return `${dd}-${mmm}-${yy}`;
+}
+
+function formatTooltipLabel(label: unknown): string {
+  if (typeof label !== "string") return String(label ?? "");
+  const d = new Date(label);
+  if (!isNaN(d.getTime()) && /^\d{4}-\d{2}-\d{2}/.test(label)) {
+    return formatDayTick(label);
+  }
+  return label;
+}
+
 function ChartTooltip({ active, payload, label }: TooltipProps<number, string>) {
   if (!active || !payload?.length) return null;
   return (
     <div className="rounded-lg border border-border bg-surface px-3 py-2 text-xs shadow-pop">
-      {label != null && <div className="mb-1 font-medium text-fg">{label}</div>}
+      {label != null && <div className="mb-1 font-medium text-fg">{formatTooltipLabel(label)}</div>}
       {payload.map((p, i) => (
         <div key={i} className="flex items-center gap-2 text-muted">
           <span className="dot" style={{ background: p.color }} />
@@ -127,16 +147,6 @@ export function ChartCard({
   );
 }
 
-const MONTHS = ["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"];
-
-function formatDayTick(value: string): string {
-  const d = new Date(value);
-  if (isNaN(d.getTime())) return value;
-  const dd = String(d.getUTCDate()).padStart(2, "0");
-  const mmm = MONTHS[d.getUTCMonth()];
-  const yy = String(d.getUTCFullYear()).slice(-2);
-  return `${dd}-${mmm}-${yy}`;
-}
 
 export function TrendLine({ data }: { data: { day: string; count: number }[] }) {
   const t = useTokens();
@@ -301,3 +311,127 @@ export function AgentBars({ data }: { data: { agent: string; count: number }[] }
     </ResponsiveContainer>
   );
 }
+
+// ───────────────────────── Operational analytics charts ─────────────────────
+
+// Inflow vs outflow: created (blue) overlaid on closed (green) per day.
+export function FlowTrend({ data }: { data: { day: string; created: number; closed: number }[] }) {
+  const t = useTokens();
+  if (!data.length) return <EmptyState msg="No tickets in this range." />;
+  return (
+    <ResponsiveContainer width="100%" height="100%">
+      <AreaChart data={data} margin={{ top: 5, right: 10, left: -18, bottom: 0 }}>
+        <defs>
+          <linearGradient id="flowCreated" x1="0" y1="0" x2="0" y2="1">
+            <stop offset="0%" stopColor="#0A84FF" stopOpacity={0.28} />
+            <stop offset="100%" stopColor="#0A84FF" stopOpacity={0} />
+          </linearGradient>
+          <linearGradient id="flowClosed" x1="0" y1="0" x2="0" y2="1">
+            <stop offset="0%" stopColor="#30D158" stopOpacity={0.24} />
+            <stop offset="100%" stopColor="#30D158" stopOpacity={0} />
+          </linearGradient>
+        </defs>
+        <CartesianGrid strokeDasharray="3 3" stroke={t.grid} vertical={false} />
+        <XAxis dataKey="day" tick={{ fontSize: 11, fill: t.axis }} stroke={t.grid} tickLine={false} tickFormatter={formatDayTick} />
+        <YAxis tick={{ fontSize: 11, fill: t.axis }} stroke={t.grid} tickLine={false} allowDecimals={false} width={32} />
+        <Tooltip content={<ChartTooltip />} cursor={{ stroke: t.grid }} />
+        <Area type="monotone" dataKey="created" name="Created" stroke="#0A84FF" strokeWidth={2.5} fill="url(#flowCreated)" dot={false} activeDot={{ r: 4, strokeWidth: 0, fill: "#0A84FF" }} />
+        <Area type="monotone" dataKey="closed" name="Closed" stroke="#30D158" strokeWidth={2.5} fill="url(#flowClosed)" dot={false} activeDot={{ r: 4, strokeWidth: 0, fill: "#30D158" }} />
+      </AreaChart>
+    </ResponsiveContainer>
+  );
+}
+
+// Generic horizontal bars for { label, count } sets (aging, intent, requesters).
+export function BucketBars({
+  data,
+  emptyMsg = "No data in this range.",
+  labelWidth = 110,
+}: {
+  data: { label: string; count: number }[];
+  emptyMsg?: string;
+  labelWidth?: number;
+}) {
+  const t = useTokens();
+  if (!data.length) return <EmptyState msg={emptyMsg} />;
+  return (
+    <ResponsiveContainer width="100%" height="100%">
+      <BarChart data={data} layout="vertical" margin={{ top: 5, right: 10, left: 30, bottom: 0 }}>
+        <defs>
+          <linearGradient id="bucketGrad" x1="0" y1="0" x2="1" y2="0">
+            <stop offset="0%" stopColor="#5E5CE6" />
+            <stop offset="100%" stopColor="#BF5AF2" />
+          </linearGradient>
+        </defs>
+        <CartesianGrid strokeDasharray="3 3" stroke={t.grid} horizontal={false} />
+        <XAxis type="number" tick={{ fontSize: 11, fill: t.axis }} stroke={t.grid} allowDecimals={false} />
+        <YAxis type="category" dataKey="label" tick={{ fontSize: 12, fill: t.fg }} stroke={t.grid} width={labelWidth} />
+        <Tooltip content={<ChartTooltip />} cursor={{ fill: t.grid, opacity: 0.4 }} />
+        <Bar dataKey="count" name="Tickets" fill="url(#bucketGrad)" radius={[0, 6, 6, 0]} maxBarSize={22} />
+      </BarChart>
+    </ResponsiveContainer>
+  );
+}
+
+type DonutSlice = { fill: string; glow: string; bg: string; text: string; border: string };
+
+// Reusable donut for any categorical breakdown with a supplied palette.
+export function DonutBreakdown({
+  data,
+  palette,
+  emptyMsg = "No data to break down.",
+}: {
+  data: { name: string; value: number }[];
+  palette: Record<string, DonutSlice>;
+  emptyMsg?: string;
+}) {
+  const total = data.reduce((s, d) => s + d.value, 0);
+  if (!total) return <EmptyState msg={emptyMsg} />;
+  const colorFor = (name: string) => palette[name.toLowerCase()] ?? SKILL_FALLBACK;
+  return (
+    <div className="flex h-full flex-col">
+      <div className="relative min-h-0 flex-1">
+        <ResponsiveContainer width="100%" height="100%">
+          <PieChart>
+            <Pie data={data} dataKey="value" nameKey="name" cx="50%" cy="50%" innerRadius={64} outerRadius={96} paddingAngle={3} stroke="none">
+              {data.map((d, i) => (
+                <Cell key={i} fill={colorFor(d.name).fill} />
+              ))}
+            </Pie>
+            <Tooltip content={<ChartTooltip />} />
+          </PieChart>
+        </ResponsiveContainer>
+        <div className="pointer-events-none absolute inset-0 flex flex-col items-center justify-center gap-0.5">
+          <span style={{ fontSize: "30px", fontWeight: 700, letterSpacing: "-0.03em", lineHeight: 1, fontFamily: "-apple-system,BlinkMacSystemFont,'SF Pro Display','Helvetica Neue',Arial,sans-serif", color: "rgb(var(--fg))" }}>{total}</span>
+          <span style={{ fontSize: "9px", fontWeight: 700, letterSpacing: "0.16em", textTransform: "uppercase", color: "rgb(var(--subtle))", fontFamily: "-apple-system,BlinkMacSystemFont,'SF Pro Display','Helvetica Neue',Arial,sans-serif" }}>total</span>
+        </div>
+      </div>
+      <div className="mt-3 flex flex-wrap justify-center gap-2">
+        {data.map((d) => {
+          const c = colorFor(d.name);
+          return (
+            <span key={d.name} style={{ display: "inline-flex", alignItems: "center", gap: "5px", padding: "3px 9px 3px 7px", borderRadius: "999px", background: c.bg, border: `1px solid ${c.border}`, fontSize: "11px", fontWeight: 600, color: c.text, fontFamily: "-apple-system,BlinkMacSystemFont,'SF Pro Display','Helvetica Neue',Arial,sans-serif" }}>
+              <span style={{ display: "inline-block", width: "7px", height: "7px", borderRadius: "50%", background: c.fill, boxShadow: `0 0 6px ${c.glow}`, flexShrink: 0 }} />
+              <span style={{ textTransform: "capitalize" }}>{d.name}</span>
+              <span style={{ fontVariantNumeric: "tabular-nums", marginLeft: "2px", opacity: 0.85 }}>{d.value}</span>
+            </span>
+          );
+        })}
+      </div>
+    </div>
+  );
+}
+
+// Palettes for the new donuts.
+export const PRIORITY_PALETTE: Record<string, DonutSlice> = {
+  critical: { fill: "#FF375F", glow: "rgba(255,55,95,0.40)",  bg: "rgba(255,55,95,0.10)",  text: "#FF375F", border: "rgba(255,55,95,0.25)"  },
+  high:     { fill: "#FF9F0A", glow: "rgba(255,159,10,0.40)", bg: "rgba(255,159,10,0.10)", text: "#FF9F0A", border: "rgba(255,159,10,0.25)" },
+  medium:   { fill: "#0A84FF", glow: "rgba(10,132,255,0.40)", bg: "rgba(10,132,255,0.10)", text: "#0A84FF", border: "rgba(10,132,255,0.25)" },
+  low:      { fill: "#30D158", glow: "rgba(48,209,88,0.40)",  bg: "rgba(48,209,88,0.10)",  text: "#30D158", border: "rgba(48,209,88,0.25)"  },
+};
+
+export const SENTIMENT_PALETTE: Record<string, DonutSlice> = {
+  positive: { fill: "#30D158", glow: "rgba(48,209,88,0.40)",  bg: "rgba(48,209,88,0.10)",  text: "#30D158", border: "rgba(48,209,88,0.25)"  },
+  neutral:  { fill: "#5E5CE6", glow: "rgba(94,92,230,0.40)",  bg: "rgba(94,92,230,0.10)",  text: "#5E5CE6", border: "rgba(94,92,230,0.25)"  },
+  negative: { fill: "#FF375F", glow: "rgba(255,55,95,0.40)",  bg: "rgba(255,55,95,0.10)",  text: "#FF375F", border: "rgba(255,55,95,0.25)"  },
+};
