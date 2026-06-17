@@ -49,8 +49,6 @@ export async function getKpis(f: TicketFilters) {
   const row = await query<{
     total: string;
     open: string;
-    pending: string;
-    resolved: string;
     closed: string;
     unassigned: string;
     escalated: string;
@@ -59,13 +57,11 @@ export async function getKpis(f: TicketFilters) {
     `SELECT
         COUNT(*)                                              AS total,
         COUNT(*) FILTER (WHERE status = 'open')               AS open,
-        COUNT(*) FILTER (WHERE status = 'pending')            AS pending,
-        COUNT(*) FILTER (WHERE status = 'resolved')           AS resolved,
         COUNT(*) FILTER (WHERE status = 'closed')             AS closed,
         COUNT(*) FILTER (WHERE ticket_owner_id IS NULL)       AS unassigned,
         COUNT(*) FILTER (WHERE escalation_level > 0)          AS escalated,
         AVG(EXTRACT(EPOCH FROM (updated_at - created_at))/3600)
-          FILTER (WHERE status IN ('resolved','closed'))      AS avg_resolution_hours
+          FILTER (WHERE status = 'closed')                    AS avg_resolution_hours
      FROM tickets t ${clause}`,
     params
   );

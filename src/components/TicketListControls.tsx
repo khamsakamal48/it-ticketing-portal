@@ -341,8 +341,6 @@ function FilterPanel({
             >
               <option value="">Any status</option>
               <option value="open">Open</option>
-              <option value="pending">Pending</option>
-              <option value="resolved">Resolved</option>
               <option value="closed">Closed</option>
             </select>
           </div>

@@ -9,8 +9,6 @@ import {
   UserX,
   Timer,
   Inbox,
-  Clock,
-  CheckCircle2,
   Archive,
 } from "lucide-react";
 import {
@@ -83,15 +81,13 @@ export default async function DashboardPage({
         <Filters agents={agents.map((a) => ({ id: encodeAgentId(a.id), name: a.name }))} showExport />
 
         {/* KPI metrics — single responsive row */}
-        <div className="grid grid-cols-2 gap-3 sm:grid-cols-4 xl:grid-cols-8">
+        <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 xl:grid-cols-6">
           <KpiCard label="Open" value={n(kpis?.open)} accent="amber" icon={Inbox} hero />
           <KpiCard label="Unassigned" value={n(kpis?.unassigned)} accent="red" icon={UserX} hero />
           <KpiCard label="Escalated" value={n(kpis?.escalated)} accent="red" icon={AlertTriangle} hero />
           <KpiCard label="Avg Resolution" value={avgRes} accent="green" icon={Timer} hero />
           <KpiCard label="Total Tickets" value={n(kpis?.total)} accent="blue" icon={Ticket} hero />
-          <KpiCard label="Pending" value={n(kpis?.pending)} accent="slate" icon={Clock} hero />
-          <KpiCard label="Resolved" value={n(kpis?.resolved)} accent="green" icon={CheckCircle2} hero />
-          <KpiCard label="Closed" value={n(kpis?.closed)} accent="slate" icon={Archive} hero />
+          <KpiCard label="Closed" value={n(kpis?.closed)} accent="green" icon={Archive} hero />
         </div>
 
         <div className="grid grid-cols-1 gap-4 lg:grid-cols-3">

@@ -9,7 +9,9 @@
 //   - "Resolve Creation Owner"   (owner must be an active user)
 //   - schema CHECK constraints   (status / priority enums)
 
-export const TICKET_STATUSES = ["open", "pending", "resolved", "closed"] as const;
+// The n8n workflows only ever write 'open' or 'closed'. 'pending'/'resolved' are
+// not part of the live lifecycle and have been removed from the schema enum.
+export const TICKET_STATUSES = ["open", "closed"] as const;
 export const TICKET_PRIORITIES = ["low", "medium", "high", "critical"] as const;
 
 export type TicketStatus = (typeof TICKET_STATUSES)[number];
@@ -23,12 +25,10 @@ export function isValidPriority(p: string): p is TicketPriority {
 }
 
 // Allowed manual status transitions in the portal. Matches n8n behaviour:
-// a customer reply reopens pending/resolved -> open (handled by n8n, not here),
-// agents may move tickets along the lifecycle and reopen closed/resolved ones.
+// agents may close an open ticket, and reopen a closed one (a customer reply
+// also reopens closed -> open, handled by n8n, not here).
 const TRANSITIONS: Record<TicketStatus, TicketStatus[]> = {
-  open: ["pending", "resolved", "closed"],
-  pending: ["open", "resolved", "closed"],
-  resolved: ["open", "pending", "closed"],
+  open: ["closed"],
   closed: ["open"], // reopen only
 };
 

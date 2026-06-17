@@ -104,8 +104,6 @@ export function TicketActions({
             onChange={(e) => run(() => changeStatus(ticketId, e.target.value, updatedAt))}
           >
             <option value="open">Open</option>
-            <option value="pending">Pending</option>
-            <option value="resolved">Resolved</option>
             <option value="closed">Closed</option>
           </select>
           <p className="mt-1 text-xs text-subtle">Closing requires an assigned owner.</p>
