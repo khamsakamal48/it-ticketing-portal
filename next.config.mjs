@@ -2,6 +2,7 @@
 const nextConfig = {
   output: "standalone",
   poweredByHeader: false,
+  allowedDevOrigins: ["helpdesk.iitbacr.space"],
   experimental: {
     serverActions: { bodySizeLimit: "2mb" },
   },
