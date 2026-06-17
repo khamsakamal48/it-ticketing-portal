@@ -19,7 +19,9 @@ export function parseFilters(sp: Record<string, string | string[] | undefined>):
   const priority = get("priority");
   if (priority) f.priority = priority;
   const owner = get("owner");
-  if (owner) {
+  if (owner === "unassigned") {
+    f.unassigned = true;
+  } else if (owner) {
     // owner is an opaque agent token; accept a bare integer too for resilience.
     const id = /^\d+$/.test(owner) ? Number(owner) : decodeAgentId(owner);
     if (id !== null) f.ownerId = id;

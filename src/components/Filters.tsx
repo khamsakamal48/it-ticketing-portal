@@ -80,6 +80,7 @@ export function Filters({
         <label className="label" htmlFor="f-agent">Agent</label>
         <select id="f-agent" className="input" defaultValue={sp.get("owner") ?? ""} onChange={(e) => setParam("owner", e.target.value)}>
           <option value="">All</option>
+          <option value="unassigned">Unassigned</option>
           {agents.map((a) => (
             <option key={a.id} value={a.id}>
               {a.name}

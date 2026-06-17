@@ -1,4 +1,5 @@
 import { query } from "./db";
+import { titleCase } from "./utils";
 
 // ---------------- Shared filter type ----------------
 export interface TicketFilters {
@@ -7,6 +8,7 @@ export interface TicketFilters {
   status?: string;
   priority?: string;
   ownerId?: number;
+  unassigned?: boolean; // tickets with no owner (ticket_owner_id IS NULL)
   tag?: string;
   search?: string;
 }
@@ -23,7 +25,8 @@ function buildWhere(f: TicketFilters): { clause: string; params: unknown[] } {
   if (f.to) add("t.created_at <= $?", f.to);
   if (f.status) add("t.status = $?", f.status);
   if (f.priority) add("t.priority = $?", f.priority);
-  if (f.ownerId) add("t.ticket_owner_id = $?", f.ownerId);
+  if (f.unassigned) conds.push("t.ticket_owner_id IS NULL");
+  else if (f.ownerId) add("t.ticket_owner_id = $?", f.ownerId);
   if (f.search) {
     // Match subject (fuzzy) OR exact ticket id. Two placeholders, one value.
     params.push(`%${f.search}%`);
@@ -233,7 +236,7 @@ export async function getActiveAgents() {
 // Export dataset: flat rows for CSV (no pagination).
 export async function exportTickets(f: TicketFilters) {
   const { clause, params } = buildWhere(f);
-  return query<Record<string, unknown>>(
+  const rows = await query<Record<string, unknown>>(
     `SELECT t.id, t.subject, t.status, t.priority,
             u.name AS owner, c.email AS contact_email,
             t.escalation_level, t.ai_intent, t.ai_sentiment,
@@ -246,4 +249,10 @@ export async function exportTickets(f: TicketFilters) {
        ORDER BY t.created_at DESC`,
     params
   );
+  // Render AI intent + sentiment as readable Title Case (no underscores).
+  return rows.map((r) => ({
+    ...r,
+    ai_intent: titleCase(r.ai_intent as string | null),
+    ai_sentiment: titleCase(r.ai_sentiment as string | null),
+  }));
 }
