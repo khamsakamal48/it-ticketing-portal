@@ -6,6 +6,7 @@ import { TicketCard } from "@/components/TicketCard";
 import { StatusBadge, PriorityBadge } from "@/components/badges";
 import { parseFilters } from "@/lib/filters";
 import { listTickets, getActiveAgents } from "@/lib/queries";
+import { getConfigValue } from "@/lib/config";
 import { fmtIST } from "@/lib/datetime";
 import { encodeTicketId, encodeAgentId } from "@/lib/opaque-id";
 
@@ -39,10 +40,13 @@ export default async function TicketsPage({
   const sort: Sort = SORTS.includes(one("sort") as Sort) ? (one("sort") as Sort) : "updated_at";
   const dir = one("dir") === "asc" ? "asc" : "desc";
 
-  const [{ rows, total }, agents] = await Promise.all([
+  const [{ rows, total }, agents, slaRaw] = await Promise.all([
     listTickets(f, page, PAGE_SIZE, sort, dir),
     getActiveAgents(),
+    getConfigValue("sla_escalation_hours", "48"),
   ]);
+  // Escalation SLA is the resolution-style threshold an open/closed duration breaches.
+  const slaHours = Number(slaRaw) || 48;
 
   return (
     <AppShell active="/tickets">
@@ -69,7 +73,7 @@ export default async function TicketsPage({
         ) : view === "card" ? (
           <div className="card divide-y divide-border overflow-hidden p-0">
             {rows.map((t) => (
-              <TicketCard key={t.id} t={t} />
+              <TicketCard key={t.id} t={t} slaHours={slaHours} />
             ))}
           </div>
         ) : (

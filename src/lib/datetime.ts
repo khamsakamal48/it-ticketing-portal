@@ -27,6 +27,28 @@ export function fmtRelativeIST(value: Date | string | null | undefined): string 
   return rel ?? "—";
 }
 
+// Fractional hours between two timestamps (end defaults to now). Used for
+// SLA / age math on the ticket queue. Returns null if either side is invalid.
+export function hoursBetween(
+  start: Date | string | null | undefined,
+  end?: Date | string | null | undefined
+): number | null {
+  const a = toIST(start);
+  const b = end != null ? toIST(end) : DateTime.now().setZone(IST);
+  if (!a || !b) return null;
+  return b.diff(a, "hours").hours;
+}
+
+// Compact duration label from hours: "<1h", "5h", "2d", "1d 3h".
+export function fmtDurationHours(hours: number | null): string {
+  if (hours == null) return "—";
+  if (hours < 1) return "<1h";
+  const d = Math.floor(hours / 24);
+  const h = Math.floor(hours % 24);
+  if (d === 0) return `${h}h`;
+  return h === 0 ? `${d}d` : `${d}d ${h}h`;
+}
+
 // CSV-friendly, sortable: "2026-06-15 14:30:00"
 export function fmtISTCsv(value: Date | string | null | undefined): string {
   const dt = toIST(value);

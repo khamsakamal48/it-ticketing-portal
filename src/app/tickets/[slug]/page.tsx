@@ -157,9 +157,16 @@ export default async function TicketDetail({ params }: { params: Promise<{ slug:
                 <div className="mt-4 border-t border-border pt-3">
                   <p className="eyebrow mb-2">Tags</p>
                   <div className="flex flex-wrap gap-1.5">
-                    {tags.map((t) => (
-                      <span key={t.tag_name} className="badge bg-surface-2 text-muted ring-1 ring-inset ring-border">{t.tag_name}</span>
-                    ))}
+                    {tags.map((t) => {
+                      const label = t.tag_name
+                        .replace(/^ai:/i, "")
+                        .replace(/_/g, " ")
+                        .replace(/\w\S*/g, (w) => w.charAt(0).toUpperCase() + w.slice(1).toLowerCase())
+                        .trim();
+                      return (
+                        <span key={t.tag_name} className="badge bg-surface-2 text-muted ring-1 ring-inset ring-border">{label}</span>
+                      );
+                    })}
                   </div>
                 </div>
               )}

@@ -1,7 +1,7 @@
 import Link from "next/link";
-import { AlertTriangle, Mail } from "lucide-react";
+import { AlertTriangle, Clock, Mail } from "lucide-react";
 import { StatusBadge, PriorityBadge } from "./badges";
-import { fmtRelativeIST } from "@/lib/datetime";
+import { fmtRelativeIST, hoursBetween, fmtDurationHours } from "@/lib/datetime";
 import { encodeTicketId } from "@/lib/opaque-id";
 import type { TicketRow } from "@/lib/queries";
 
@@ -29,9 +29,21 @@ function avatarFor(seed: string) {
 }
 
 // Freshdesk-style card row. Display-only — edits live on the ticket detail page.
-export function TicketCard({ t }: { t: TicketRow }) {
+// `slaHours` is the breach threshold (escalation SLA) the duration is checked against.
+export function TicketCard({ t, slaHours }: { t: TicketRow; slaHours: number }) {
   const requester = t.contact_email ?? "Unknown requester";
   const initial = (requester[0] ?? "?").toUpperCase();
+
+  // Open → age since creation (live). Closed → time taken to close, using
+  // updated_at as the closure proxy (same basis as avg_resolution_hours).
+  const isClosed = t.status === "closed";
+  const elapsed = isClosed
+    ? hoursBetween(t.created_at, t.updated_at)
+    : hoursBetween(t.created_at);
+  const breached = elapsed != null && elapsed > slaHours;
+  const durationLabel = isClosed
+    ? `Closed in ${fmtDurationHours(elapsed)}`
+    : `Open ${fmtDurationHours(elapsed)}`;
 
   return (
     <Link
@@ -79,6 +91,21 @@ export function TicketCard({ t }: { t: TicketRow }) {
         <span className="text-xs text-muted">
           {t.owner_name ?? <span className="text-critical">Unassigned</span>}
         </span>
+        {elapsed != null && (
+          <span
+            className={`tabular inline-flex items-center gap-1 text-xs ${
+              breached ? "font-medium text-critical" : "text-subtle"
+            }`}
+            title={
+              breached
+                ? `Exceeded ${slaHours}h SLA`
+                : `${isClosed ? "Resolution time" : "Open duration"} (SLA ${slaHours}h)`
+            }
+          >
+            {breached ? <AlertTriangle size={11} /> : <Clock size={11} />}
+            {durationLabel}
+          </span>
+        )}
       </div>
     </Link>
   );
