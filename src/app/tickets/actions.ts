@@ -6,7 +6,7 @@ import { auth } from "@/lib/auth";
 import { withTransaction } from "@/lib/db";
 import { writeAudit, type AuditAction } from "@/lib/audit";
 import { encodeTicketId } from "@/lib/ticket-id";
-import { notifyTicketClosed } from "@/lib/n8n";
+import { notifyTicketClosed, notifyAgentAssigned } from "@/lib/n8n";
 import {
   assertTransition,
   assertOwnerRequiredForClose,
@@ -66,6 +66,19 @@ async function activeUserExists(client: PoolClient, userId: number): Promise<boo
   return rows.length > 0;
 }
 
+// Fetches the active agent's contact details for the assignment notification.
+// Returns null if the user is inactive/unknown (caller enforces that separately).
+async function activeAgent(
+  client: PoolClient,
+  userId: number
+): Promise<{ email: string; name: string | null } | null> {
+  const { rows } = await client.query<{ email: string; name: string | null }>(
+    `SELECT email, name FROM users WHERE id = $1 AND is_active = true`,
+    [userId]
+  );
+  return rows[0] ?? null;
+}
+
 function wrap(
   promise: Promise<void | { warning?: string }>,
   ticketId: number
@@ -93,11 +106,11 @@ export async function reassignTicket(
   return wrap(
     (async () => {
       const actor = await requireActor();
-      await withTransaction(async (client) => {
+      const assigned = await withTransaction(async (client) => {
         const t = await lockTicket(client, ticketId, expectedUpdatedAt);
-        if (!(await activeUserExists(client, newOwnerId)))
-          throw new RuleError("Cannot assign to an inactive or unknown user.");
-        if (t.ticket_owner_id === newOwnerId) return;
+        const agent = await activeAgent(client, newOwnerId);
+        if (!agent) throw new RuleError("Cannot assign to an inactive or unknown user.");
+        if (t.ticket_owner_id === newOwnerId) return null;
         await client.query(
           `UPDATE tickets SET ticket_owner_id = $1, updated_at = NOW() WHERE id = $2`,
           [newOwnerId, ticketId]
@@ -111,7 +124,29 @@ export async function reassignTicket(
           oldValue: t.ticket_owner_id ? String(t.ticket_owner_id) : null,
           newValue: String(newOwnerId),
         });
+        // Carry agent + ticket info out of the txn so we can notify n8n AFTER commit.
+        return { agentEmail: agent.email, agentName: agent.name, subject: t.subject };
       });
+
+      // Agent-assignment email is owned by n8n; trigger it only once the reassign
+      // has durably committed. Best-effort — never undo a committed assignment.
+      // Skipped when assigning to self (no point pinging your own action).
+      if (assigned && assigned.agentEmail !== actor.email) {
+        const result = await notifyAgentAssigned({
+          ticketId,
+          ticketSlug: encodeTicketId(ticketId),
+          subject: assigned.subject,
+          agentEmail: assigned.agentEmail,
+          agentName: assigned.agentName,
+          assignedByEmail: actor.email,
+        });
+        if (result.configured && !result.sent) {
+          return {
+            warning:
+              "Ticket reassigned, but the agent notification could not be sent. Notify the agent manually.",
+          };
+        }
+      }
     })(),
     ticketId
   );
