@@ -73,8 +73,6 @@ html,
 body {
   background: rgb(var(--bg));
   color: rgb(var(--fg));
-  height: 100%;
-  overflow: hidden;
 }
 
 /* Ambient accent glow behind the whole app (subtle, fixed, non-interactive) */
