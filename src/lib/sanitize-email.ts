@@ -1,3 +1,4 @@
+// Email HTML sanitizer — renders untrusted email markup safely in the portal.
 import sanitizeHtml from "sanitize-html";
 
 // Detect whether a message body is HTML markup vs. plain text.
