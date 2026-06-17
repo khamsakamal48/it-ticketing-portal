@@ -362,7 +362,7 @@ function FilterPanel({
           </div>
 
           <div>
-            <span className="label">Created (IST)</span>
+            <span className="label">Created</span>
             <div className="flex flex-col gap-2">
               <DatePicker
                 value={draft.from}

@@ -73,7 +73,7 @@ export default async function DashboardPage({
                 color: "rgb(var(--subtle))",
               }}
             >
-              Live ticketing metrics — all times in IST
+              Live ticketing metrics
             </p>
           </div>
         </div>
@@ -92,7 +92,7 @@ export default async function DashboardPage({
 
         <div className="grid grid-cols-1 gap-4 lg:grid-cols-3">
           <div className="lg:col-span-2">
-            <ChartCard title="Ticket volume — by IST day">
+            <ChartCard title="Ticket volume">
               <TrendLine data={trend.map((r) => ({ day: r.day, count: Number(r.count) }))} />
             </ChartCard>
           </div>
@@ -102,51 +102,61 @@ export default async function DashboardPage({
         </div>
 
         <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
-          <ChartCard title="Tickets by agent">
-            <AgentBars data={byAgent.slice(0, 8).map((r) => ({ agent: r.agent, count: Number(r.count) }))} />
-          </ChartCard>
-          <div className="card p-5">
-            {/* Skill section-title pattern — amber variant (orange→pink) */}
-            <div className="mb-4 flex items-center gap-2">
-              <span
-                aria-hidden
-                style={{
-                  display: "inline-block",
-                  width: "10px",
-                  height: "10px",
-                  borderRadius: "3px",
-                  background: "linear-gradient(135deg,#FF9F0A,#FF375F)",
-                  boxShadow: "0 2px 6px rgba(255,159,10,0.45)",
-                  flexShrink: 0,
-                }}
-              />
-              <h3
-                style={{
-                  fontSize: "11px",
-                  fontWeight: 700,
-                  letterSpacing: "0.14em",
-                  textTransform: "uppercase",
-                  color: "rgb(var(--fg))",
-                  fontFamily:
-                    "-apple-system,BlinkMacSystemFont,'SF Pro Display','Helvetica Neue',Arial,sans-serif",
-                }}
-              >
-                Top tags
-              </h3>
-            </div>
-            <div className="space-y-1">
-              {tags.length === 0 && <p className="text-sm text-subtle">No tags in range.</p>}
-              {tags.map((t) => (
-                <div
-                  key={t.tag_name}
-                  className="flex items-center justify-between rounded-lg px-2 py-1.5 text-sm transition-colors hover:bg-surface-2"
-                >
-                  <span className="text-muted">{t.tag_name}</span>
-                  <span className="badge bg-brand/10 text-brand tabular ring-1 ring-inset ring-brand/15">{t.count}</span>
+          {(() => {
+            // 44px per agent row, minimum 256px (h-64 baseline)
+            const agentChartHeight = Math.max(256, byAgent.length * 44);
+            // Each tag row ~36px + header ~54px, minimum 256px
+            const tagCardMinHeight = Math.max(256, tags.length * 36 + 54);
+            return (
+              <>
+                <ChartCard title="Tickets by agent" chartHeight={agentChartHeight}>
+                  <AgentBars data={byAgent.map((r) => ({ agent: r.agent, count: Number(r.count) }))} />
+                </ChartCard>
+                <div className="card p-5" style={{ minHeight: `${tagCardMinHeight}px` }}>
+                  {/* Skill section-title pattern — amber variant (orange→pink) */}
+                  <div className="mb-4 flex items-center gap-2">
+                    <span
+                      aria-hidden
+                      style={{
+                        display: "inline-block",
+                        width: "10px",
+                        height: "10px",
+                        borderRadius: "3px",
+                        background: "linear-gradient(135deg,#FF9F0A,#FF375F)",
+                        boxShadow: "0 2px 6px rgba(255,159,10,0.45)",
+                        flexShrink: 0,
+                      }}
+                    />
+                    <h3
+                      style={{
+                        fontSize: "11px",
+                        fontWeight: 700,
+                        letterSpacing: "0.14em",
+                        textTransform: "uppercase",
+                        color: "rgb(var(--fg))",
+                        fontFamily:
+                          "-apple-system,BlinkMacSystemFont,'SF Pro Display','Helvetica Neue',Arial,sans-serif",
+                      }}
+                    >
+                      Top tags
+                    </h3>
+                  </div>
+                  <div className="space-y-1">
+                    {tags.length === 0 && <p className="text-sm text-subtle">No tags in range.</p>}
+                    {tags.map((t) => (
+                      <div
+                        key={t.tag_name}
+                        className="flex items-center justify-between rounded-lg px-2 py-1.5 text-sm transition-colors hover:bg-surface-2"
+                      >
+                        <span className="text-muted">{t.tag_name}</span>
+                        <span className="badge bg-brand/10 text-brand tabular ring-1 ring-inset ring-brand/15">{t.count}</span>
+                      </div>
+                    ))}
+                  </div>
                 </div>
-              ))}
-            </div>
-          </div>
+              </>
+            );
+          })()}
         </div>
       </div>
     </AppShell>

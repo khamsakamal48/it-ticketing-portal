@@ -41,7 +41,7 @@ export function Filters({
   return (
     <div className="card flex flex-wrap items-end gap-3 p-4">
       <div>
-        <label className="label" htmlFor="f-from">From (IST)</label>
+        <label className="label" htmlFor="f-from">From</label>
         <DatePicker
           id="f-from"
           value={sp.get("from") ?? ""}
@@ -49,7 +49,7 @@ export function Filters({
         />
       </div>
       <div>
-        <label className="label" htmlFor="f-to">To (IST)</label>
+        <label className="label" htmlFor="f-to">To</label>
         <DatePicker
           id="f-to"
           value={sp.get("to") ?? ""}

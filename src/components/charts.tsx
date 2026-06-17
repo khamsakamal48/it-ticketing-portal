@@ -77,11 +77,15 @@ export function ChartCard({
   title,
   action,
   children,
+  chartHeight,
 }: {
   title: string;
   action?: React.ReactNode;
   children: React.ReactNode;
+  /** Height of the chart area in px. Defaults to 256 (h-64). */
+  chartHeight?: number;
 }) {
+  const height = Math.max(256, chartHeight ?? 256);
   return (
     <div className="card p-5">
       <div className="mb-4 flex items-center justify-between">
@@ -115,7 +119,7 @@ export function ChartCard({
         </div>
         {action}
       </div>
-      <div className="h-64">{children}</div>
+      <div style={{ height: `${height}px` }}>{children}</div>
     </div>
   );
 }
