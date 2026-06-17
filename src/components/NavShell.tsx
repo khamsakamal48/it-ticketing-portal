@@ -127,7 +127,7 @@ export function NavShell({
   };
 
   return (
-    <div className="flex h-dvh overflow-hidden">
+    <div className="fixed inset-0 flex">
       {/* Desktop sidebar */}
       <aside
         className={`hidden flex-col border-r border-border bg-surface/60 backdrop-blur-xl transition-[width] duration-200 md:flex h-full overflow-y-auto ${

@@ -37,7 +37,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
       <head>
         <script suppressHydrationWarning dangerouslySetInnerHTML={{ __html: themeScript }} />
       </head>
-      <body className="h-dvh overflow-hidden bg-bg font-sans text-fg antialiased">{children}</body>
+      <body className="min-h-dvh bg-bg font-sans text-fg antialiased">{children}</body>
     </html>
   );
 }
