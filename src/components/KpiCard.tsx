@@ -83,7 +83,7 @@ export function KpiCard({
           className="leading-none"
           style={{
             fontSize: "10px",
-            fontWeight: 700,
+            fontWeight: 800,
             letterSpacing: "0.14em",
             textTransform: "uppercase",
             color: "rgba(255,255,255,0.82)",
