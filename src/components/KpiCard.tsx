@@ -3,12 +3,30 @@ import { cn } from "@/lib/utils";
 
 type Accent = "blue" | "amber" | "green" | "red" | "slate";
 
-const ACCENT: Record<Accent, { text: string; bg: string; bar: string; wash: string }> = {
-  blue: { text: "text-brand", bg: "bg-brand/10", bar: "from-brand/70", wash: "from-brand/[0.10] via-brand/[0.03]" },
-  amber: { text: "text-open", bg: "bg-open/10", bar: "from-open/70", wash: "from-open/[0.12] via-open/[0.04]" },
-  green: { text: "text-resolved", bg: "bg-resolved/10", bar: "from-resolved/70", wash: "from-resolved/[0.12] via-resolved/[0.04]" },
-  red: { text: "text-critical", bg: "bg-critical/10", bar: "from-critical/70", wash: "from-critical/[0.12] via-critical/[0.04]" },
-  slate: { text: "text-muted", bg: "bg-surface-2", bar: "from-border-strong", wash: "from-fg/[0.05] via-fg/[0.02]" },
+const ACCENT: Record<
+  Accent,
+  { gradient: string; shadow: string }
+> = {
+  blue:  {
+    gradient: "linear-gradient(135deg, #4A90D9 0%, #357ABD 100%)",
+    shadow:   "0 2px 12px rgba(74,144,217,0.40)",
+  },
+  amber: {
+    gradient: "linear-gradient(135deg, #E8915A 0%, #D4804A 100%)",
+    shadow:   "0 2px 12px rgba(232,145,90,0.40)",
+  },
+  green: {
+    gradient: "linear-gradient(135deg, #43B89C 0%, #36A389 100%)",
+    shadow:   "0 2px 12px rgba(67,184,156,0.40)",
+  },
+  red: {
+    gradient: "linear-gradient(135deg, #E85A5A 0%, #C94444 100%)",
+    shadow:   "0 2px 12px rgba(232,90,90,0.40)",
+  },
+  slate: {
+    gradient: "linear-gradient(135deg, #7E95A8 0%, #6B7F91 100%)",
+    shadow:   "0 2px 12px rgba(107,127,145,0.35)",
+  },
 };
 
 export function KpiCard({
@@ -27,32 +45,83 @@ export function KpiCard({
   hero?: boolean;
 }) {
   const a = ACCENT[accent];
+
   return (
-    <div className={cn("card card-hover relative overflow-hidden p-4", hero && "p-5")}>
-      {/* Accent wash — soft Apple-style tinted gradient backdrop */}
+    <div
+      className={cn(
+        "relative overflow-hidden rounded-[10px]",
+        hero ? "p-5" : "p-4",
+      )}
+      style={{
+        background: a.gradient,
+        boxShadow: a.shadow,
+        border: "1px solid rgba(255,255,255,0.15)",
+        fontFamily:
+          "-apple-system, BlinkMacSystemFont, 'Segoe UI', 'Helvetica Neue', Arial, sans-serif",
+      }}
+    >
+      {/* Subtle inner-highlight shimmer at top */}
       <span
         aria-hidden
-        className={cn("pointer-events-none absolute inset-0 bg-gradient-to-br to-transparent", a.wash)}
+        className="pointer-events-none absolute inset-x-0 top-0 h-px"
+        style={{ background: "rgba(255,255,255,0.30)" }}
       />
-      {/* Top accent bar — subtle on standard cards, present on hero */}
-      {hero && (
+
+      {/* Label row + icon */}
+      <div className="flex items-start justify-between gap-2">
         <span
-          aria-hidden
-          className={cn("absolute inset-x-0 top-0 h-px bg-gradient-to-r to-transparent", a.bar)}
-        />
-      )}
-      <div className="relative flex items-start justify-between gap-2">
-        <div className="eyebrow">{label}</div>
+          className="leading-none"
+          style={{
+            fontSize: "11px",
+            fontWeight: 600,
+            letterSpacing: "0.08em",
+            textTransform: "uppercase",
+            color: "rgba(255,255,255,0.85)",
+          }}
+        >
+          {label}
+        </span>
+
         {Icon && (
-          <span className={cn("flex items-center justify-center rounded-lg", a.bg, a.text, hero ? "h-8 w-8" : "h-7 w-7")}>
-            <Icon size={hero ? 16 : 15} />
+          <span
+            className="flex shrink-0 items-center justify-center rounded-lg"
+            style={{
+              width: hero ? "32px" : "28px",
+              height: hero ? "32px" : "28px",
+              background: "rgba(255,255,255,0.20)",
+              color: "#ffffff",
+            }}
+          >
+            <Icon size={hero ? 16 : 14} />
           </span>
         )}
       </div>
-      <div className={cn("tabular relative mt-2 font-semibold tracking-tight text-fg", hero ? "text-[2rem] leading-none" : "text-2xl")}>
+
+      {/* KPI value */}
+      <div
+        className="tabular mt-2 font-bold leading-none tracking-tight"
+        style={{
+          fontSize: hero ? "32px" : "26px",
+          color: "#ffffff",
+          letterSpacing: "-0.01em",
+        }}
+      >
         {value}
       </div>
-      {sub && <div className="relative mt-1.5 text-xs text-subtle">{sub}</div>}
+
+      {/* Sub / delta line */}
+      {sub && (
+        <div
+          className="mt-1.5 leading-tight"
+          style={{
+            fontSize: "12px",
+            fontWeight: 500,
+            color: "rgba(255,255,255,0.80)",
+          }}
+        >
+          {sub}
+        </div>
+      )}
     </div>
   );
 }
