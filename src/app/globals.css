@@ -13,37 +13,38 @@
    focus/active. Depth comes from elevation + 1px borders, not shadows.
    ───────────────────────────────────────────────────────────── */
 :root {
-  --bg: 249 250 251;          /* page canvas */
-  --bg-tint: 99 102 241;      /* ambient accent glow hue */
+  --bg: 245 247 251;          /* page canvas — #F5F7FB (leadership-deck) */
+  --bg-tint: 10 132 255;      /* ambient accent glow hue — Apple blue */
   --surface: 255 255 255;     /* cards, panels */
   --surface-2: 244 245 247;   /* hover / inset / table head */
   --surface-3: 237 238 241;   /* popovers / pressed */
   --border: 228 229 234;      /* hairline */
   --border-strong: 213 214 220;
-  --fg: 24 24 31;             /* primary text */
-  --muted: 82 82 95;          /* secondary text */
-  --subtle: 122 122 138;      /* tertiary / labels */
+  --fg: 11 18 32;             /* --ink #0B1220 */
+  --muted: 91 100 115;        /* --muted #5B6473 */
+  --subtle: 154 163 178;      /* --soft #9AA3B2 */
 
-  --brand: 79 70 229;         /* indigo-600 */
+  --brand: 10 132 255;        /* --blue  #0A84FF  (Apple blue) */
   --brand-fg: 255 255 255;
-  --brand-soft: 99 102 241;   /* lighter indigo for gradients */
-  --accent: 139 92 246;       /* violet — gradient partner */
+  --brand-soft: 94 92 230;    /* --indigo #5E5CE6 */
+  --accent: 191 90 242;       /* --purple #BF5AF2 */
 
-  --open: 202 138 4;          /* amber-600 */
-  --pending: 100 116 139;     /* slate-500 */
-  --resolved: 5 150 105;      /* emerald-600 */
-  --closed: 100 116 139;
-  --critical: 220 38 38;      /* red-600 */
-  --high: 234 88 12;          /* orange-600 */
+  --open: 255 159 10;         /* --orange #FF9F0A */
+  --pending: 94 92 230;       /* --indigo #5E5CE6 */
+  --resolved: 48 209 88;      /* --teal   #30D158 */
+  --closed: 154 163 178;      /* --soft   #9AA3B2 */
+  --critical: 255 55 95;      /* --pink   #FF375F */
+  --high: 255 159 10;         /* --orange #FF9F0A */
 
   --ring: var(--brand);
-  --shadow-color: 220 30% 25%;
-  --shadow: 0 1px 2px 0 rgb(0 0 0 / 0.04), 0 1px 3px 0 rgb(0 0 0 / 0.06);
+  --shadow-card: 0 1px 2px rgba(15,23,42,0.04), 0 8px 24px -12px rgba(15,23,42,0.10);
+  --shadow: 0 1px 2px rgba(15,23,42,0.04), 0 8px 24px -12px rgba(15,23,42,0.10);
+  --shadow-lg: 0 30px 60px -20px rgba(15,23,42,0.25), 0 10px 24px -8px rgba(15,23,42,0.12);
 }
 
 .dark {
   --bg: 9 9 13;              /* near-black, faint blue */
-  --bg-tint: 99 102 241;
+  --bg-tint: 10 132 255;     /* Apple blue tint */
   --surface: 18 18 24;        /* elevated card */
   --surface-2: 26 26 33;      /* hover / elevated-2 */
   --surface-3: 35 35 44;      /* popover / pressed */
@@ -53,20 +54,22 @@
   --muted: 161 161 175;
   --subtle: 113 113 130;
 
-  --brand: 109 117 245;       /* indigo, brighter on dark */
+  --brand: 10 132 255;        /* Apple blue stays vibrant on dark */
   --brand-fg: 255 255 255;
-  --brand-soft: 129 140 248;
-  --accent: 167 139 250;      /* violet-400 */
+  --brand-soft: 94 92 230;    /* indigo */
+  --accent: 191 90 242;       /* purple */
 
-  --open: 245 158 11;         /* amber-500 */
-  --pending: 148 163 184;
-  --resolved: 52 211 153;     /* emerald-400 */
+  --open: 255 159 10;         /* orange */
+  --pending: 94 92 230;       /* indigo */
+  --resolved: 48 209 88;      /* teal green */
   --closed: 113 113 130;
-  --critical: 248 113 113;    /* red-400 */
-  --high: 251 146 60;         /* orange-400 */
+  --critical: 255 55 95;      /* pink-red */
+  --high: 255 159 10;
 
   --ring: var(--brand);
   --shadow: 0 1px 2px 0 rgb(0 0 0 / 0.5), 0 1px 3px 0 rgb(0 0 0 / 0.4);
+  --shadow-card: 0 1px 2px rgba(0,0,0,0.3), 0 8px 24px -12px rgba(0,0,0,0.4);
+  --shadow-lg: 0 30px 60px -20px rgba(0,0,0,0.5), 0 10px 24px -8px rgba(0,0,0,0.3);
 }
 
 html,
@@ -75,16 +78,27 @@ body {
   color: rgb(var(--fg));
 }
 
-/* Ambient accent glow behind the whole app (subtle, fixed, non-interactive) */
+/* Leadership-deck tri-radial wash — blue top-right, mint bottom-left, pink top-right corner.
+   Overlapping radial accent washes on a soft neutral canvas (light mode).
+   Dark mode keeps the washes but at lower opacity against near-black canvas. */
 body::before {
   content: "";
   position: fixed;
   inset: 0;
   z-index: 0;
   pointer-events: none;
+  /* Light: stacked radial washes matching skill spec */
   background:
-    radial-gradient(60rem 40rem at 100% -10%, rgb(var(--bg-tint) / 0.10), transparent 60%),
-    radial-gradient(50rem 30rem at -10% 0%, rgb(var(--accent) / 0.06), transparent 55%);
+    radial-gradient(80rem 60rem at 100% -8%,  rgba(10,132,255,0.13)  0%, transparent 55%),
+    radial-gradient(60rem 50rem at -8%  100%, rgba(48,209,88,0.09)   0%, transparent 55%),
+    radial-gradient(50rem 40rem at 98%   98%, rgba(255,55,95,0.07)   0%, transparent 50%);
+}
+.dark body::before,
+.dark body::before {
+  background:
+    radial-gradient(80rem 60rem at 100% -8%,  rgba(10,132,255,0.09)  0%, transparent 55%),
+    radial-gradient(60rem 50rem at -8%  100%, rgba(48,209,88,0.06)   0%, transparent 55%),
+    radial-gradient(50rem 40rem at 98%   98%, rgba(255,55,95,0.05)   0%, transparent 50%);
 }
 body > * {
   position: relative;
@@ -117,10 +131,22 @@ body > * {
 }
 
 @layer components {
-  /* Elevated panel. Top hairline highlight gives a faint lit edge (Linear). */
+  /* Glassmorphism card — leadership-deck spec.
+     Light: rgba(255,255,255,0.72) + blur(20px) saturate(180%) + rgba white border.
+     Dark:  rgba(18,18,24,0.78) + blur + white/8 border. */
   .card {
-    @apply relative rounded-xl border border-border bg-surface shadow-[var(--shadow)];
-    background-image: linear-gradient(rgb(var(--fg) / 0.015), transparent 40%);
+    @apply relative;
+    border-radius: 18px;
+    background: rgba(255,255,255,0.72);
+    backdrop-filter: blur(20px) saturate(180%);
+    -webkit-backdrop-filter: blur(20px) saturate(180%);
+    border: 1px solid rgba(255,255,255,0.70);
+    box-shadow: var(--shadow-card);
+  }
+  .dark .card {
+    background: rgba(18,18,24,0.78);
+    border-color: rgba(255,255,255,0.07);
+    box-shadow: var(--shadow-card);
   }
   .card-hover {
     @apply transition-[border-color,box-shadow,background-color] duration-200
@@ -214,15 +240,16 @@ body > * {
 }
 
 @layer utilities {
-  /* Brand gradient text for the wordmark / accents */
+  /* Brand gradient text — blue→indigo (leadership-deck) */
   .text-gradient {
-    background-image: linear-gradient(135deg, rgb(var(--brand-soft)), rgb(var(--accent)));
+    background-image: linear-gradient(135deg, #0A84FF, #5E5CE6);
     -webkit-background-clip: text;
     background-clip: text;
     color: transparent;
   }
+  /* Brand tile gradient — blue→indigo */
   .bg-grad-brand {
-    background-image: linear-gradient(135deg, rgb(var(--brand)), rgb(var(--accent)));
+    background-image: linear-gradient(135deg, #0A84FF, #5E5CE6);
   }
 }
 

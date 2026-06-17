@@ -85,7 +85,34 @@ export function ChartCard({
   return (
     <div className="card p-5">
       <div className="mb-4 flex items-center justify-between">
-        <h3 className="text-sm font-semibold text-fg">{title}</h3>
+        {/* Skill section-title: gradient color block + uppercase 11px/700/0.14em label */}
+        <div className="flex items-center gap-2">
+          <span
+            aria-hidden
+            style={{
+              display: "inline-block",
+              width: "10px",
+              height: "10px",
+              borderRadius: "3px",
+              background: "linear-gradient(135deg,#0A84FF,#5E5CE6)",
+              boxShadow: "0 2px 6px rgba(10,132,255,0.40)",
+              flexShrink: 0,
+            }}
+          />
+          <h3
+            style={{
+              fontSize: "11px",
+              fontWeight: 700,
+              letterSpacing: "0.14em",
+              textTransform: "uppercase",
+              color: "rgb(var(--fg))",
+              fontFamily:
+                "-apple-system,BlinkMacSystemFont,'SF Pro Display','SF Pro Text','Segoe UI','Helvetica Neue',Arial,sans-serif",
+            }}
+          >
+            {title}
+          </h3>
+        </div>
         {action}
       </div>
       <div className="h-64">{children}</div>
@@ -96,13 +123,15 @@ export function ChartCard({
 export function TrendLine({ data }: { data: { day: string; count: number }[] }) {
   const t = useTokens();
   if (!data.length) return <EmptyState msg="No tickets in this range." />;
+  /* Use skill blue (#0A84FF) for the trend line for vibrancy */
+  const lineColor = "#0A84FF";
   return (
     <ResponsiveContainer width="100%" height="100%">
       <AreaChart data={data} margin={{ top: 5, right: 10, left: -18, bottom: 0 }}>
         <defs>
           <linearGradient id="trendFill" x1="0" y1="0" x2="0" y2="1">
-            <stop offset="0%" stopColor={t.brand} stopOpacity={0.28} />
-            <stop offset="100%" stopColor={t.brand} stopOpacity={0} />
+            <stop offset="0%" stopColor={lineColor} stopOpacity={0.30} />
+            <stop offset="100%" stopColor={lineColor} stopOpacity={0} />
           </linearGradient>
         </defs>
         <CartesianGrid strokeDasharray="3 3" stroke={t.grid} vertical={false} />
@@ -113,11 +142,11 @@ export function TrendLine({ data }: { data: { day: string; count: number }[] }) 
           type="monotone"
           dataKey="count"
           name="Tickets"
-          stroke={t.brand}
+          stroke={lineColor}
           strokeWidth={2.5}
           fill="url(#trendFill)"
           dot={false}
-          activeDot={{ r: 4, strokeWidth: 0 }}
+          activeDot={{ r: 4, strokeWidth: 0, fill: lineColor }}
         />
       </AreaChart>
     </ResponsiveContainer>
@@ -168,11 +197,17 @@ export function AgentBars({ data }: { data: { agent: string; count: number }[] }
   return (
     <ResponsiveContainer width="100%" height="100%">
       <BarChart data={data} layout="vertical" margin={{ top: 5, right: 10, left: 30, bottom: 0 }}>
+        <defs>
+          <linearGradient id="barGrad" x1="0" y1="0" x2="1" y2="0">
+            <stop offset="0%" stopColor="#0A84FF" />
+            <stop offset="100%" stopColor="#5E5CE6" />
+          </linearGradient>
+        </defs>
         <CartesianGrid strokeDasharray="3 3" stroke={t.grid} horizontal={false} />
         <XAxis type="number" tick={{ fontSize: 11, fill: t.axis }} stroke={t.grid} allowDecimals={false} />
         <YAxis type="category" dataKey="agent" tick={{ fontSize: 11, fill: t.axis }} stroke={t.grid} width={90} />
         <Tooltip content={<ChartTooltip />} cursor={{ fill: t.grid, opacity: 0.4 }} />
-        <Bar dataKey="count" name="Tickets" fill={t.brand} radius={[0, 4, 4, 0]} maxBarSize={22} />
+        <Bar dataKey="count" name="Tickets" fill="url(#barGrad)" radius={[0, 6, 6, 0]} maxBarSize={22} />
       </BarChart>
     </ResponsiveContainer>
   );

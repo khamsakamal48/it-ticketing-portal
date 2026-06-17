@@ -28,7 +28,8 @@ const TITLE: Record<string, string> = {
 function Brand({ collapsed = false }: { collapsed?: boolean }) {
   return (
     <div className="flex items-center gap-2.5">
-      <div className="bg-grad-brand flex h-9 w-9 shrink-0 items-center justify-center rounded-xl text-sm font-bold text-white shadow-[0_2px_8px_-2px_rgb(var(--brand)/0.6)]">
+      <div className="bg-grad-brand flex h-9 w-9 shrink-0 items-center justify-center rounded-xl text-sm font-bold text-white"
+           style={{ boxShadow: "0 10px 22px -8px rgba(10,132,255,0.55), inset 0 1px 0 rgba(255,255,255,0.20)" }}>
         IT
       </div>
       {!collapsed && (

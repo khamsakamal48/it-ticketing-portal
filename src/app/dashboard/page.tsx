@@ -50,8 +50,33 @@ export default async function DashboardPage({
       <div className="animate-rise-in space-y-6">
         <div className="flex flex-wrap items-end justify-between gap-3">
           <div>
-            <h2 className="text-2xl font-semibold tracking-tight text-fg">Operations overview</h2>
-            <p className="mt-1 text-sm text-subtle">Live ticketing metrics — all times in IST</p>
+            {/* Skill: page title — 26px / 700 / -0.02em / gradient text fill */}
+            <h2
+              className="text-gradient"
+              style={{
+                fontSize: "26px",
+                fontWeight: 700,
+                letterSpacing: "-0.02em",
+                lineHeight: 1.1,
+                fontFamily:
+                  "-apple-system,BlinkMacSystemFont,'SF Pro Display','Helvetica Neue',Arial,sans-serif",
+              }}
+            >
+              Operations Overview
+            </h2>
+            {/* Skill: subtitle — 10px / uppercase / letter-spacing 0.16em */}
+            <p
+              className="mt-1"
+              style={{
+                fontSize: "10px",
+                fontWeight: 600,
+                letterSpacing: "0.16em",
+                textTransform: "uppercase",
+                color: "rgb(var(--subtle))",
+              }}
+            >
+              Live ticketing metrics — all times in IST
+            </p>
           </div>
         </div>
 
@@ -85,7 +110,34 @@ export default async function DashboardPage({
             <AgentBars data={byAgent.slice(0, 8).map((r) => ({ agent: r.agent, count: Number(r.count) }))} />
           </ChartCard>
           <div className="card p-5">
-            <h3 className="mb-4 text-sm font-semibold text-fg">Top tags</h3>
+            {/* Skill section-title pattern — amber variant (orange→pink) */}
+            <div className="mb-4 flex items-center gap-2">
+              <span
+                aria-hidden
+                style={{
+                  display: "inline-block",
+                  width: "10px",
+                  height: "10px",
+                  borderRadius: "3px",
+                  background: "linear-gradient(135deg,#FF9F0A,#FF375F)",
+                  boxShadow: "0 2px 6px rgba(255,159,10,0.45)",
+                  flexShrink: 0,
+                }}
+              />
+              <h3
+                style={{
+                  fontSize: "11px",
+                  fontWeight: 700,
+                  letterSpacing: "0.14em",
+                  textTransform: "uppercase",
+                  color: "rgb(var(--fg))",
+                  fontFamily:
+                    "-apple-system,BlinkMacSystemFont,'SF Pro Display','Helvetica Neue',Arial,sans-serif",
+                }}
+              >
+                Top tags
+              </h3>
+            </div>
             <div className="space-y-1">
               {tags.length === 0 && <p className="text-sm text-subtle">No tags in range.</p>}
               {tags.map((t) => (
