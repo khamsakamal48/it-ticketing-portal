@@ -39,9 +39,10 @@ services:
       - "3000:3000"
     env_file:
       - .env
-    # Built-in Podman alias to the host; no extra_hosts needed.
-    # Uncomment for rootless host-loopback access (option B above):
-    # network_mode: "pasta:--map-gw"
+    # Join the existing n8n network so the portal can reach the
+    # Postgres container (n8n-postgres) by name over container DNS.
+    networks:
+      - n8n-net
     restart: unless-stopped
     # Podman honors Dockerfile HEALTHCHECK; surface it to compose:
     healthcheck:
@@ -49,3 +50,12 @@ services:
       interval: 30s
       timeout: 5s
       retries: 3
+
+# Reuse the network the n8n Postgres container already runs on, so the
+# portal resolves "n8n-postgres" via container DNS. Set .env DATABASE_URL
+# host to n8n-postgres (NOT localhost), e.g.:
+#   postgresql://USER:PASS@n8n-postgres:5432/it_ticketing_system
+networks:
+  n8n-net:
+    external: true
+    name: n8n-production_n8n-net
