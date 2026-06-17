@@ -30,5 +30,17 @@ export function parseFilters(sp: Record<string, string | string[] | undefined>):
   if (tag) f.tag = tag;
   const search = get("q");
   if (search) f.search = search;
+  // Dashboard drill-down dimensions.
+  const intent = get("intent");
+  if (intent) f.intent = intent;
+  const sentiment = get("sentiment");
+  if (sentiment) f.sentiment = sentiment;
+  if (get("escalated") === "1") f.escalated = true;
+  const requester = get("requester");
+  if (requester) f.requester = requester;
+  const minageh = get("minageh");
+  if (minageh && /^\d+$/.test(minageh)) f.minAgeH = Number(minageh);
+  const agebucket = get("agebucket");
+  if (agebucket) f.ageBucket = agebucket;
   return f;
 }

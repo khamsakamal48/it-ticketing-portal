@@ -11,7 +11,22 @@ export interface TicketFilters {
   unassigned?: boolean; // tickets with no owner (ticket_owner_id IS NULL)
   tag?: string;
   search?: string;
+  intent?: string; // ai_intent exact match
+  sentiment?: string; // ai_sentiment exact match
+  escalated?: boolean; // escalation_level > 0
+  requester?: string; // contact email
+  minAgeH?: number; // open-or-any ticket older than N hours (SLA breach)
+  ageBucket?: string; // discrete backlog-aging bucket (see AGE_BUCKET_SQL)
 }
+
+// Discrete age buckets → static interval SQL on (now() - created_at). Keys are
+// whitelisted, so the matched SQL is never user-controlled (no injection).
+const AGE_BUCKET_SQL: Record<string, string> = {
+  "0-1d": "now() - t.created_at < interval '1 day'",
+  "1-3d": "now() - t.created_at >= interval '1 day' AND now() - t.created_at < interval '3 days'",
+  "3-7d": "now() - t.created_at >= interval '3 days' AND now() - t.created_at < interval '7 days'",
+  ">7d": "now() - t.created_at >= interval '7 days'",
+};
 
 // Builds a parameterised WHERE clause + params array from filters.
 function buildWhere(f: TicketFilters): { clause: string; params: unknown[] } {
@@ -27,6 +42,16 @@ function buildWhere(f: TicketFilters): { clause: string; params: unknown[] } {
   if (f.priority) add("t.priority = $?", f.priority);
   if (f.unassigned) conds.push("t.ticket_owner_id IS NULL");
   else if (f.ownerId) add("t.ticket_owner_id = $?", f.ownerId);
+  if (f.intent) add("t.ai_intent = $?", f.intent);
+  if (f.sentiment) add("t.ai_sentiment = $?", f.sentiment);
+  if (f.escalated) conds.push("t.escalation_level > 0");
+  if (f.requester)
+    add(
+      "EXISTS (SELECT 1 FROM contacts c WHERE c.id = t.contact_id AND c.email = $?)",
+      f.requester
+    );
+  if (f.minAgeH != null) add("EXTRACT(EPOCH FROM (now() - t.created_at)) / 3600 > $?", f.minAgeH);
+  if (f.ageBucket && AGE_BUCKET_SQL[f.ageBucket]) conds.push(`(${AGE_BUCKET_SQL[f.ageBucket]})`);
   if (f.search) {
     // Match subject (fuzzy) OR exact ticket id. Two placeholders, one value.
     params.push(`%${f.search}%`);
@@ -98,14 +123,15 @@ export async function getVolumeTrend(f: TicketFilters) {
 
 export async function getByAgent(f: TicketFilters) {
   const { clause, params } = buildWhere(f);
-  return query<{ agent: string; count: string; open: string }>(
+  return query<{ agent: string; agent_id: number | null; count: string; open: string }>(
     `SELECT COALESCE(u.name, 'Unassigned') AS agent,
+            t.ticket_owner_id AS agent_id,
             COUNT(*) AS count,
             COUNT(*) FILTER (WHERE t.status = 'open') AS open
        FROM tickets t
        LEFT JOIN users u ON u.id = t.ticket_owner_id
        ${clause}
-       GROUP BY 1 ORDER BY count DESC`,
+       GROUP BY u.name, t.ticket_owner_id ORDER BY count DESC`,
     params
   );
 }
@@ -250,8 +276,9 @@ export async function getSentimentBreakdown(f: TicketFilters) {
 // Per-agent throughput + quality: resolved count, avg resolution h, open load.
 export async function getAgentPerformance(f: TicketFilters) {
   const { clause, params } = buildWhere(f);
-  return query<{ agent: string; resolved: string; avg_resolution_h: string | null; open_load: string }>(
+  return query<{ agent: string; agent_id: number | null; resolved: string; avg_resolution_h: string | null; open_load: string }>(
     `SELECT COALESCE(u.name, 'Unassigned') AS agent,
+            t.ticket_owner_id AS agent_id,
             COUNT(*) FILTER (WHERE t.status = 'closed') AS resolved,
             AVG(EXTRACT(EPOCH FROM (t.updated_at - t.created_at)) / 3600)
               FILTER (WHERE t.status = 'closed')        AS avg_resolution_h,
@@ -259,7 +286,7 @@ export async function getAgentPerformance(f: TicketFilters) {
        FROM tickets t
        LEFT JOIN users u ON u.id = t.ticket_owner_id
        ${clause}
-       GROUP BY 1 ORDER BY resolved DESC`,
+       GROUP BY u.name, t.ticket_owner_id ORDER BY resolved DESC`,
     params
   );
 }

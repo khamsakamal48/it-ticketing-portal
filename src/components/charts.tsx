@@ -1,6 +1,7 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
+import { useRouter, useSearchParams } from "next/navigation";
 import {
   ResponsiveContainer,
   BarChart,
@@ -43,6 +44,26 @@ function useTokens() {
     return () => ob.disconnect();
   }, []);
   return tokens;
+}
+
+// Drill-down navigation: carry over the dashboard's current params (date range)
+// and add the clicked dimension, then route to the ticket queue. Returns a
+// callback; charts that don't receive link props simply never call it.
+function useQueueNav() {
+  const router = useRouter();
+  const sp = useSearchParams();
+  return useCallback(
+    (params: Record<string, string | undefined>) => {
+      const next = new URLSearchParams(sp.toString());
+      next.delete("page");
+      for (const [k, v] of Object.entries(params)) {
+        if (v == null || v === "") next.delete(k);
+        else next.set(k, v);
+      }
+      router.push(`/tickets?${next.toString()}`);
+    },
+    [router, sp]
+  );
 }
 
 // Skill leadership-deck vibrant palette for the status donut
@@ -148,14 +169,21 @@ export function ChartCard({
 }
 
 
-export function TrendLine({ data }: { data: { day: string; count: number }[] }) {
+export function TrendLine({ data, linkByDay }: { data: { day: string; count: number }[]; linkByDay?: boolean }) {
   const t = useTokens();
+  const nav = useQueueNav();
   if (!data.length) return <EmptyState msg="No tickets in this range." />;
   /* Use skill blue (#0A84FF) for the trend line for vibrancy */
   const lineColor = "#0A84FF";
+  const onClick = linkByDay
+    ? (e: { activeLabel?: string | number }) => {
+        const day = e?.activeLabel != null ? String(e.activeLabel) : "";
+        if (day) nav({ from: day, to: day });
+      }
+    : undefined;
   return (
     <ResponsiveContainer width="100%" height="100%">
-      <AreaChart data={data} margin={{ top: 5, right: 10, left: -18, bottom: 0 }}>
+      <AreaChart data={data} onClick={onClick} style={linkByDay ? { cursor: "pointer" } : undefined} margin={{ top: 5, right: 10, left: -18, bottom: 0 }}>
         <defs>
           <linearGradient id="trendFill" x1="0" y1="0" x2="0" y2="1">
             <stop offset="0%" stopColor={lineColor} stopOpacity={0.30} />
@@ -181,8 +209,9 @@ export function TrendLine({ data }: { data: { day: string; count: number }[] }) 
   );
 }
 
-export function StatusPie({ data }: { data: { name: string; value: number }[] }) {
+export function StatusPie({ data, linkParam }: { data: { name: string; value: number }[]; linkParam?: string }) {
   const total = data.reduce((s, d) => s + d.value, 0);
+  const nav = useQueueNav();
   if (!total) return <EmptyState msg="No tickets to break down." />;
   return (
     <div className="flex h-full flex-col">
@@ -209,6 +238,8 @@ export function StatusPie({ data }: { data: { name: string; value: number }[] })
               outerRadius={106}
               paddingAngle={3}
               stroke="none"
+              onClick={linkParam ? (d: { name?: string }) => d?.name && nav({ [linkParam]: d.name }) : undefined}
+              style={linkParam ? { cursor: "pointer" } : undefined}
             >
               {data.map((d, i) => {
                 const c = SKILL_STATUS_COLORS[d.name] ?? SKILL_FALLBACK;
@@ -255,6 +286,7 @@ export function StatusPie({ data }: { data: { name: string; value: number }[] })
           return (
             <span
               key={d.name}
+              onClick={linkParam ? () => nav({ [linkParam]: d.name }) : undefined}
               style={{
                 display: "inline-flex",
                 alignItems: "center",
@@ -266,6 +298,7 @@ export function StatusPie({ data }: { data: { name: string; value: number }[] })
                 fontSize: "11px",
                 fontWeight: 600,
                 color: c.text,
+                cursor: linkParam ? "pointer" : undefined,
                 fontFamily: "-apple-system,BlinkMacSystemFont,'SF Pro Display','Helvetica Neue',Arial,sans-serif",
               }}
             >
@@ -290,9 +323,22 @@ export function StatusPie({ data }: { data: { name: string; value: number }[] })
   );
 }
 
-export function AgentBars({ data }: { data: { agent: string; count: number }[] }) {
+export function AgentBars({
+  data,
+  linkValueMap,
+}: {
+  data: { agent: string; count: number }[];
+  linkValueMap?: Record<string, string>;
+}) {
   const t = useTokens();
+  const nav = useQueueNav();
   if (!data.length) return <EmptyState msg="No assigned tickets." />;
+  const onBar = linkValueMap
+    ? (d: { agent?: string }) => {
+        const owner = d?.agent ? linkValueMap[d.agent] : undefined;
+        if (owner) nav({ owner });
+      }
+    : undefined;
   return (
     <ResponsiveContainer width="100%" height="100%">
       <BarChart data={data} layout="vertical" margin={{ top: 5, right: 10, left: 30, bottom: 0 }}>
@@ -304,9 +350,9 @@ export function AgentBars({ data }: { data: { agent: string; count: number }[] }
         </defs>
         <CartesianGrid strokeDasharray="3 3" stroke={t.grid} horizontal={false} />
         <XAxis type="number" tick={{ fontSize: 11, fill: t.axis }} stroke={t.grid} allowDecimals={false} />
-        <YAxis type="category" dataKey="agent" tick={{ fontSize: 13, fill: t.fg }} stroke={t.grid} width={140} />
+        <YAxis type="category" dataKey="agent" tick={<SingleLineTick fill={t.fg} fontSize={13} />} stroke={t.grid} width={140} />
         <Tooltip content={<ChartTooltip />} cursor={{ fill: t.grid, opacity: 0.4 }} />
-        <Bar dataKey="count" name="Tickets" fill="url(#barGrad)" radius={[0, 6, 6, 0]} maxBarSize={22} />
+        <Bar dataKey="count" name="Tickets" fill="url(#barGrad)" radius={[0, 6, 6, 0]} maxBarSize={22} onClick={onBar} style={onBar ? { cursor: "pointer" } : undefined} />
       </BarChart>
     </ResponsiveContainer>
   );
@@ -320,14 +366,21 @@ const FLOW_LEGEND = [
   { key: "closed",  label: "Outflow", fill: "#30D158", glow: "rgba(48,209,88,0.40)",  bg: "rgba(48,209,88,0.10)",  border: "rgba(48,209,88,0.25)"  },
 ];
 
-export function FlowTrend({ data }: { data: { day: string; created: number; closed: number }[] }) {
+export function FlowTrend({ data, linkByDay }: { data: { day: string; created: number; closed: number }[]; linkByDay?: boolean }) {
   const t = useTokens();
+  const nav = useQueueNav();
   if (!data.length) return <EmptyState msg="No tickets in this range." />;
+  const onClick = linkByDay
+    ? (e: { activeLabel?: string | number }) => {
+        const day = e?.activeLabel != null ? String(e.activeLabel) : "";
+        if (day) nav({ from: day, to: day });
+      }
+    : undefined;
   return (
     <div className="flex h-full flex-col">
       <div className="min-h-0 flex-1">
         <ResponsiveContainer width="100%" height="100%">
-          <AreaChart data={data} margin={{ top: 5, right: 10, left: -18, bottom: 0 }}>
+          <AreaChart data={data} onClick={onClick} style={linkByDay ? { cursor: "pointer" } : undefined} margin={{ top: 5, right: 10, left: -18, bottom: 0 }}>
             <defs>
               <linearGradient id="flowCreated" x1="0" y1="0" x2="0" y2="1">
                 <stop offset="0%" stopColor="#0A84FF" stopOpacity={0.28} />
@@ -386,18 +439,45 @@ export function FlowTrend({ data }: { data: { day: string; created: number; clos
   );
 }
 
+// Single-line y-axis tick: never wraps (Recharts' default Text wraps to fit width).
+function SingleLineTick({ x, y, payload, fill, fontSize = 12 }: any) {
+  return (
+    <text x={x} y={y} dy={4} textAnchor="end" fontSize={fontSize} fill={fill}>
+      {payload.value}
+    </text>
+  );
+}
+
 // Generic horizontal bars for { label, count } sets (aging, intent, requesters).
 export function BucketBars({
   data,
   emptyMsg = "No data in this range.",
   labelWidth = 110,
+  linkParam,
+  linkValueMap,
+  extraParams,
 }: {
   data: { label: string; count: number }[];
   emptyMsg?: string;
   labelWidth?: number;
+  /** URL param this chart's bars map to (e.g. "intent", "requester", "agebucket"). */
+  linkParam?: string;
+  /** Optional label → param-value map (e.g. requester name → email, intent label → raw). */
+  linkValueMap?: Record<string, string>;
+  /** Extra params always set on click (e.g. aging adds status=open). */
+  extraParams?: Record<string, string>;
 }) {
   const t = useTokens();
+  const nav = useQueueNav();
   if (!data.length) return <EmptyState msg={emptyMsg} />;
+  const onBar = linkParam
+    ? (d: { label?: string }) => {
+        if (!d?.label) return;
+        const value = linkValueMap ? linkValueMap[d.label] : d.label;
+        if (value == null) return;
+        nav({ ...(extraParams ?? {}), [linkParam]: value });
+      }
+    : undefined;
   return (
     <ResponsiveContainer width="100%" height="100%">
       <BarChart data={data} layout="vertical" margin={{ top: 5, right: 10, left: 30, bottom: 0 }}>
@@ -409,9 +489,9 @@ export function BucketBars({
         </defs>
         <CartesianGrid strokeDasharray="3 3" stroke={t.grid} horizontal={false} />
         <XAxis type="number" tick={{ fontSize: 11, fill: t.axis }} stroke={t.grid} allowDecimals={false} />
-        <YAxis type="category" dataKey="label" tick={{ fontSize: 12, fill: t.fg }} stroke={t.grid} width={labelWidth} />
+        <YAxis type="category" dataKey="label" tick={<SingleLineTick fill={t.fg} />} stroke={t.grid} width={labelWidth} />
         <Tooltip content={<ChartTooltip />} cursor={{ fill: t.grid, opacity: 0.4 }} />
-        <Bar dataKey="count" name="Tickets" fill="url(#bucketGrad)" radius={[0, 6, 6, 0]} maxBarSize={22} />
+        <Bar dataKey="count" name="Tickets" fill="url(#bucketGrad)" radius={[0, 6, 6, 0]} maxBarSize={22} onClick={onBar} style={onBar ? { cursor: "pointer" } : undefined} />
       </BarChart>
     </ResponsiveContainer>
   );
@@ -424,14 +504,19 @@ export function DonutBreakdown({
   data,
   palette,
   emptyMsg = "No data to break down.",
+  linkParam,
 }: {
   data: { name: string; value: number }[];
   palette: Record<string, DonutSlice>;
   emptyMsg?: string;
+  /** URL param this donut maps to (e.g. "priority", "sentiment"). Slice value is lowercased. */
+  linkParam?: string;
 }) {
   const total = data.reduce((s, d) => s + d.value, 0);
+  const nav = useQueueNav();
   if (!total) return <EmptyState msg={emptyMsg} />;
   const colorFor = (name: string) => palette[name.toLowerCase()] ?? SKILL_FALLBACK;
+  const go = (name: string) => linkParam && nav({ [linkParam]: name.toLowerCase() });
   return (
     <div className="flex h-full flex-col">
       <div className="relative min-h-0 flex-1">
@@ -457,6 +542,8 @@ export function DonutBreakdown({
               outerRadius={106}
               paddingAngle={3}
               stroke="none"
+              onClick={linkParam ? (d: { name?: string }) => d?.name && go(d.name) : undefined}
+              style={linkParam ? { cursor: "pointer" } : undefined}
             >
               {data.map((d, i) => {
                 const c = colorFor(d.name);
@@ -501,6 +588,7 @@ export function DonutBreakdown({
           return (
             <span
               key={d.name}
+              onClick={linkParam ? () => go(d.name) : undefined}
               style={{
                 display: "inline-flex",
                 alignItems: "center",
@@ -512,6 +600,7 @@ export function DonutBreakdown({
                 fontSize: "11px",
                 fontWeight: 600,
                 color: c.text,
+                cursor: linkParam ? "pointer" : undefined,
                 fontFamily: "-apple-system,BlinkMacSystemFont,'SF Pro Display','Helvetica Neue',Arial,sans-serif",
               }}
             >

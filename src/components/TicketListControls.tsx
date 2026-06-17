@@ -26,7 +26,16 @@ const SORT_OPTIONS = [
   { value: "priority:desc", label: "Priority (high → low)" },
 ] as const;
 
-const FILTER_KEYS = ["q", "owner", "status", "priority", "from", "to"] as const;
+// Every key that counts as an "active filter" (badge count + Clear-all). Includes
+// dashboard drill-down dims that have no panel control (chip-removable only).
+const FILTER_KEYS = [
+  "q", "owner", "status", "priority", "from", "to",
+  "intent", "sentiment", "escalated", "requester", "agebucket", "minageh",
+] as const;
+
+// Subset the slide-out panel actually edits. Apply must only touch these so it
+// never wipes chip-only filters (intent/requester/agebucket/minageh) set elsewhere.
+const PANEL_KEYS = ["q", "owner", "status", "priority", "from", "to", "sentiment", "escalated"] as const;
 
 // Toolbar (sort / layout / export / pagination) + right slide-out filter panel.
 // All state lives in the URL; server components re-read it. The panel batches
@@ -178,7 +187,7 @@ export function TicketListControls({
         sp={sp}
         onApply={(draft) => {
           const next = new URLSearchParams(sp.toString());
-          for (const k of FILTER_KEYS) {
+          for (const k of PANEL_KEYS) {
             if (draft[k]) next.set(k, draft[k]);
             else next.delete(k);
           }
@@ -223,7 +232,7 @@ function ViewToggle({
   );
 }
 
-type Draft = Record<(typeof FILTER_KEYS)[number], string>;
+type Draft = Record<(typeof PANEL_KEYS)[number], string>;
 
 function FilterPanel({
   open,
@@ -248,6 +257,8 @@ function FilterPanel({
       priority: sp.get("priority") ?? "",
       from: sp.get("from") ?? "",
       to: sp.get("to") ?? "",
+      sentiment: sp.get("sentiment") ?? "",
+      escalated: sp.get("escalated") ?? "",
     }),
     [sp]
   );
@@ -359,6 +370,33 @@ function FilterPanel({
               <option value="medium">Medium</option>
               <option value="low">Low</option>
             </select>
+          </div>
+
+          <div>
+            <label className="label" htmlFor="fp-sentiment">Sentiment</label>
+            <select
+              id="fp-sentiment"
+              className="input w-full"
+              value={draft.sentiment}
+              onChange={(e) => set("sentiment", e.target.value)}
+            >
+              <option value="">Any sentiment</option>
+              <option value="positive">Positive</option>
+              <option value="neutral">Neutral</option>
+              <option value="negative">Negative</option>
+            </select>
+          </div>
+
+          <div>
+            <label className="flex cursor-pointer items-center gap-2 text-sm text-fg">
+              <input
+                type="checkbox"
+                className="h-4 w-4 accent-brand"
+                checked={draft.escalated === "1"}
+                onChange={(e) => set("escalated", e.target.checked ? "1" : "")}
+              />
+              Escalated only
+            </label>
           </div>
 
           <div>

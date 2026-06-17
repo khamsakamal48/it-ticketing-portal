@@ -2,6 +2,7 @@ import Link from "next/link";
 import { AlertTriangle } from "lucide-react";
 import AppShell from "@/components/AppShell";
 import { TicketListControls } from "@/components/TicketListControls";
+import { ActiveFilters } from "@/components/ActiveFilters";
 import { TicketCard } from "@/components/TicketCard";
 import { StatusBadge, PriorityBadge } from "@/components/badges";
 import { parseFilters } from "@/lib/filters";
@@ -65,6 +66,8 @@ export default async function TicketsPage({
           pageSize={PAGE_SIZE}
           view={view}
         />
+
+        <ActiveFilters agents={agents.map((a) => ({ id: encodeAgentId(a.id), name: a.name }))} />
 
         {rows.length === 0 ? (
           <div className="card px-4 py-16 text-center text-subtle">

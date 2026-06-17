@@ -1,3 +1,4 @@
+import Link from "next/link";
 import AppShell from "@/components/AppShell";
 import { KpiCard } from "@/components/KpiCard";
 import {
@@ -115,6 +116,27 @@ export default async function DashboardPage({
     .map((b) => ({ label: b, count: n(aging.find((r) => r.bucket === b)?.count) }))
     .filter((r) => r.count > 0);
 
+  // ----- Drill-down link helpers -----
+  // Carry the dashboard's current date range onto every queue link, then add
+  // the clicked dimension (intersection — matches the "carry over + add" rule).
+  const rawFrom = Array.isArray(sp.from) ? sp.from[0] : sp.from;
+  const rawTo = Array.isArray(sp.to) ? sp.to[0] : sp.to;
+  const queueHref = (extra: Record<string, string>) => {
+    const p = new URLSearchParams();
+    if (rawFrom) p.set("from", rawFrom);
+    if (rawTo) p.set("to", rawTo);
+    for (const [k, v] of Object.entries(extra)) p.set(k, v);
+    return `/tickets?${p.toString()}`;
+  };
+  const ownerValue = (agentId: number | null) =>
+    agentId == null ? "unassigned" : encodeAgentId(agentId);
+  // Agent name → owner param value (token or "unassigned") for the bar chart.
+  const agentOwnerMap = Object.fromEntries(byAgent.map((r) => [r.agent, ownerValue(r.agent_id)]));
+  // Intent display label → raw ai_intent value.
+  const intentValueMap = Object.fromEntries(intent.map((r) => [titleCase(r.intent) ?? r.intent, r.intent]));
+  // Requester display name → email (the queue's requester param).
+  const requesterValueMap = Object.fromEntries(requesters.map((r) => [r.name, r.email]));
+
   return (
     <AppShell active="/dashboard">
       <div className="animate-rise-in space-y-6">
@@ -183,30 +205,30 @@ export default async function DashboardPage({
 
         {/* KPI metrics — responsive grid, single row on wide screens */}
         <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(150px, 1fr))", gap: "12px" }}>
-          <KpiCard label="Open" value={n(kpis?.open)} accent="amber" icon={Inbox} hero />
-          <KpiCard label="Unassigned" value={n(kpis?.unassigned)} accent="red" icon={UserX} hero />
-          <KpiCard label="Escalated" value={n(kpis?.escalated)} accent="red" icon={AlertTriangle} hero />
-          <KpiCard label="Total Tickets" value={n(kpis?.total)} accent="blue" icon={Ticket} hero />
-          <KpiCard label="Closed" value={n(kpis?.closed)} accent="green" icon={Archive} hero />
+          <KpiCard label="Open" value={n(kpis?.open)} accent="amber" icon={Inbox} hero href={queueHref({ status: "open" })} />
+          <KpiCard label="Unassigned" value={n(kpis?.unassigned)} accent="red" icon={UserX} hero href={queueHref({ owner: "unassigned" })} />
+          <KpiCard label="Escalated" value={n(kpis?.escalated)} accent="red" icon={AlertTriangle} hero href={queueHref({ escalated: "1" })} />
+          <KpiCard label="Total Tickets" value={n(kpis?.total)} accent="blue" icon={Ticket} hero href={queueHref({})} />
+          <KpiCard label="Closed" value={n(kpis?.closed)} accent="green" icon={Archive} hero href={queueHref({ status: "closed" })} />
         </div>
 
         {/* Responsiveness / SLA KPI strip — moved up to sit just below the main KPIs */}
         <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(150px, 1fr))", gap: "12px" }}>
-          <KpiCard label="First Response" value={medianFr} sub="median" accent="blue" icon={Gauge} />
-          <KpiCard label="Avg Resolution" value={avgRes} accent="green" icon={Timer} hero />
-          <KpiCard label="SLA Compliance" value={slaCompliancePct} sub={`within ${slaEscalationHours}h · ${totalClosed} closed`} accent="green" icon={ShieldCheck} />
-          <KpiCard label="Breaching Now" value={breachingNow} sub={`open > ${slaEscalationHours}h`} accent="red" icon={Flame} />
-          <KpiCard label="Net Backlog" value={netLabel} sub={netDelta > 0 ? "growing" : netDelta < 0 ? "shrinking" : "flat"} accent="slate" icon={TrendingUp} />
+          <KpiCard label="First Response" value={medianFr} sub="median" accent="blue" icon={Gauge} href={queueHref({})} />
+          <KpiCard label="Avg Resolution" value={avgRes} accent="green" icon={Timer} hero href={queueHref({ status: "closed" })} />
+          <KpiCard label="SLA Compliance" value={slaCompliancePct} sub={`within ${slaEscalationHours}h · ${totalClosed} closed`} accent="green" icon={ShieldCheck} href={queueHref({ status: "closed" })} />
+          <KpiCard label="Breaching Now" value={breachingNow} sub={`open > ${slaEscalationHours}h`} accent="red" icon={Flame} href={queueHref({ status: "open", minageh: String(slaEscalationHours) })} />
+          <KpiCard label="Net Backlog" value={netLabel} sub={netDelta > 0 ? "growing" : netDelta < 0 ? "shrinking" : "flat"} accent="slate" icon={TrendingUp} href={queueHref({})} />
         </div>
 
         <div className="grid grid-cols-1 gap-4 lg:grid-cols-3">
           <div className="lg:col-span-2">
             <ChartCard title="Ticket volume">
-              <TrendLine data={trend.map((r) => ({ day: r.day, count: Number(r.count) }))} />
+              <TrendLine data={trend.map((r) => ({ day: r.day, count: Number(r.count) }))} linkByDay />
             </ChartCard>
           </div>
           <ChartCard title="By status">
-            <StatusPie data={status.map((r) => ({ name: r.status, value: Number(r.count) }))} />
+            <StatusPie data={status.map((r) => ({ name: r.status, value: Number(r.count) }))} linkParam="status" />
           </ChartCard>
         </div>
 
@@ -217,7 +239,7 @@ export default async function DashboardPage({
             return (
               <>
                 <ChartCard title="Tickets by agent" chartHeight={agentChartHeight}>
-                  <AgentBars data={byAgent.map((r) => ({ agent: r.agent, count: Number(r.count) }))} />
+                  <AgentBars data={byAgent.map((r) => ({ agent: r.agent, count: Number(r.count) }))} linkValueMap={agentOwnerMap} />
                 </ChartCard>
                 <div className="card p-5">
                   <div className="mb-4 flex items-center gap-2">
@@ -259,12 +281,12 @@ export default async function DashboardPage({
                       <p style={{ paddingTop: "12px", color: "rgb(var(--subtle))" }}>No tickets in range.</p>
                     )}
                     {agentPerf.map((r) => (
-                      <div key={r.agent} style={{ display: "grid", gridTemplateColumns: "3fr 1.2fr 1.2fr 0.8fr", columnGap: "8px", borderTop: "1px solid rgb(var(--border) / 0.6)", paddingTop: "7px", paddingBottom: "7px" }}>
+                      <Link key={r.agent} href={queueHref({ owner: ownerValue(r.agent_id) })} style={{ display: "grid", gridTemplateColumns: "3fr 1.2fr 1.2fr 0.8fr", columnGap: "8px", borderTop: "1px solid rgb(var(--border) / 0.6)", paddingTop: "7px", paddingBottom: "7px", textDecoration: "none", cursor: "pointer" }} className="transition-colors hover:bg-surface-2">
                         <span style={{ fontWeight: 500, color: "rgb(var(--fg))" }}>{r.agent}</span>
                         <span style={{ textAlign: "right", fontVariantNumeric: "tabular-nums", color: "rgb(var(--fg))" }}>{n(r.resolved)}</span>
                         <span style={{ textAlign: "right", fontVariantNumeric: "tabular-nums", color: "rgb(var(--muted))" }}>{r.avg_resolution_h != null ? n(r.avg_resolution_h).toFixed(1) : "—"}</span>
                         <span style={{ textAlign: "right", fontVariantNumeric: "tabular-nums", color: "rgb(var(--muted))" }}>{n(r.open_load)}</span>
-                      </div>
+                      </Link>
                     ))}
                   </div>
                 </div>
@@ -306,11 +328,11 @@ export default async function DashboardPage({
         <div className="grid grid-cols-1 gap-4 lg:grid-cols-3">
           <div className="lg:col-span-2">
             <ChartCard title="Inflow vs outflow">
-              <FlowTrend data={flow.map((r) => ({ day: r.day, created: Number(r.created), closed: Number(r.closed) }))} />
+              <FlowTrend data={flow.map((r) => ({ day: r.day, created: Number(r.created), closed: Number(r.closed) }))} linkByDay />
             </ChartCard>
           </div>
           <ChartCard title="Backlog aging">
-            <BucketBars data={agingData} emptyMsg="No open tickets." labelWidth={56} />
+            <BucketBars data={agingData} emptyMsg="No open tickets." labelWidth={56} linkParam="agebucket" extraParams={{ status: "open" }} />
           </ChartCard>
         </div>
 
@@ -321,6 +343,8 @@ export default async function DashboardPage({
               data={intent.map((r) => ({ label: titleCase(r.intent) ?? r.intent, count: Number(r.count) }))}
               emptyMsg="No AI intent data."
               labelWidth={120}
+              linkParam="intent"
+              linkValueMap={intentValueMap}
             />
           </ChartCard>
           <ChartCard title="Sentiment">
@@ -328,6 +352,7 @@ export default async function DashboardPage({
               data={sentiment.map((r) => ({ name: r.sentiment, value: Number(r.count) }))}
               palette={SENTIMENT_PALETTE}
               emptyMsg="No sentiment data."
+              linkParam="sentiment"
             />
           </ChartCard>
         </div>
@@ -339,6 +364,7 @@ export default async function DashboardPage({
               data={priority.map((r) => ({ name: r.priority, value: Number(r.count) }))}
               palette={PRIORITY_PALETTE}
               emptyMsg="No tickets to break down."
+              linkParam="priority"
             />
           </ChartCard>
           <ChartCard title="Top requesters" chartHeight={Math.max(256, requesters.length * 36)}>
@@ -346,6 +372,8 @@ export default async function DashboardPage({
               data={requesters.map((r) => ({ label: r.name, count: Number(r.count) }))}
               emptyMsg="No requesters in range."
               labelWidth={150}
+              linkParam="requester"
+              linkValueMap={requesterValueMap}
             />
           </ChartCard>
         </div>

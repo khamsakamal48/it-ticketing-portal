@@ -1,4 +1,5 @@
 import type { LucideIcon } from "lucide-react";
+import Link from "next/link";
 import { cn } from "@/lib/utils";
 
 type Accent = "blue" | "amber" | "green" | "red" | "slate";
@@ -44,6 +45,7 @@ export function KpiCard({
   accent = "slate",
   icon: Icon,
   hero = false,
+  href,
 }: {
   label: string;
   value: string | number;
@@ -51,12 +53,18 @@ export function KpiCard({
   accent?: Accent;
   icon?: LucideIcon;
   hero?: boolean;
+  /** When set, the whole card becomes a link to the filtered ticket queue. */
+  href?: string;
 }) {
   const a = ACCENT[accent];
 
-  return (
+  const card = (
     <div
-      className={cn("relative overflow-hidden", hero ? "p-5" : "p-4")}
+      className={cn(
+        "relative h-full overflow-hidden",
+        hero ? "p-5" : "p-4",
+        href && "transition-transform duration-150 hover:-translate-y-0.5"
+      )}
       style={{
         background: a.gradient,
         boxShadow: a.shadow,
@@ -138,4 +146,13 @@ export function KpiCard({
       )}
     </div>
   );
+
+  if (href) {
+    return (
+      <Link href={href} className="block focus:outline-none focus-visible:ring-2 focus-visible:ring-white/60" style={{ borderRadius: "18px" }}>
+        {card}
+      </Link>
+    );
+  }
+  return card;
 }
