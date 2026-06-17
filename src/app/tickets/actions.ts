@@ -47,8 +47,11 @@ async function lockTicket(client: PoolClient, ticketId: number, expectedUpdatedA
     contact_email: string | null;
     subject: string | null;
   }>(
-    `SELECT id, status, priority, ticket_owner_id, updated_at, contact_email, subject
-       FROM tickets WHERE id = $1 FOR UPDATE`,
+    `SELECT t.id, t.status, t.priority, t.ticket_owner_id, t.updated_at,
+            c.email AS contact_email, t.subject
+       FROM tickets t
+       LEFT JOIN contacts c ON c.id = t.contact_id
+       WHERE t.id = $1 FOR UPDATE OF t`,
     [ticketId]
   );
   const t = rows[0];
