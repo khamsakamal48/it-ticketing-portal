@@ -127,6 +127,17 @@ export function ChartCard({
   );
 }
 
+const MONTHS = ["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"];
+
+function formatDayTick(value: string): string {
+  const d = new Date(value);
+  if (isNaN(d.getTime())) return value;
+  const dd = String(d.getUTCDate()).padStart(2, "0");
+  const mmm = MONTHS[d.getUTCMonth()];
+  const yy = String(d.getUTCFullYear()).slice(-2);
+  return `${dd}-${mmm}-${yy}`;
+}
+
 export function TrendLine({ data }: { data: { day: string; count: number }[] }) {
   const t = useTokens();
   if (!data.length) return <EmptyState msg="No tickets in this range." />;
@@ -142,7 +153,7 @@ export function TrendLine({ data }: { data: { day: string; count: number }[] }) 
           </linearGradient>
         </defs>
         <CartesianGrid strokeDasharray="3 3" stroke={t.grid} vertical={false} />
-        <XAxis dataKey="day" tick={{ fontSize: 11, fill: t.axis }} stroke={t.grid} tickLine={false} />
+        <XAxis dataKey="day" tick={{ fontSize: 11, fill: t.axis }} stroke={t.grid} tickLine={false} tickFormatter={formatDayTick} />
         <YAxis tick={{ fontSize: 11, fill: t.axis }} stroke={t.grid} tickLine={false} allowDecimals={false} width={32} />
         <Tooltip content={<ChartTooltip />} cursor={{ stroke: t.grid }} />
         <Area

@@ -147,9 +147,9 @@ export default async function DashboardPage({
                       .filter((t) => t.tag_name.toLowerCase() !== "ai")
                       .map((t) => {
                         const label = t.tag_name
+                          .replace(/^ai:/i, "")
                           .replace(/_/g, " ")
                           .replace(/\w\S*/g, (w) => w.charAt(0).toUpperCase() + w.slice(1).toLowerCase())
-                          .replace(/^AI\s+/i, "")
                           .trim();
                         return (
                           <div
