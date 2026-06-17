@@ -322,6 +322,7 @@ function FilterPanel({
               onChange={(e) => set("owner", e.target.value)}
             >
               <option value="">Any agent</option>
+              <option value="unassigned">Unassigned</option>
               {agents.map((a) => (
                 <option key={a.id} value={a.id}>
                   {a.name}
