@@ -49,7 +49,7 @@ export function KpiCard({
   return (
     <div
       className={cn(
-        "relative overflow-hidden rounded-[10px]",
+        "relative overflow-hidden rounded-xl",
         hero ? "p-5" : "p-4",
       )}
       style={{
