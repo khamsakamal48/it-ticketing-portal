@@ -148,7 +148,9 @@ export default async function DashboardPage({
                       .map((t) => {
                         const label = t.tag_name
                           .replace(/_/g, " ")
-                          .replace(/\w\S*/g, (w) => w.charAt(0).toUpperCase() + w.slice(1).toLowerCase());
+                          .replace(/\w\S*/g, (w) => w.charAt(0).toUpperCase() + w.slice(1).toLowerCase())
+                          .replace(/^AI\s+/i, "")
+                          .trim();
                         return (
                           <div
                             key={t.tag_name}

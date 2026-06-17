@@ -283,7 +283,7 @@ export function AgentBars({ data }: { data: { agent: string; count: number }[] }
         </defs>
         <CartesianGrid strokeDasharray="3 3" stroke={t.grid} horizontal={false} />
         <XAxis type="number" tick={{ fontSize: 11, fill: t.axis }} stroke={t.grid} allowDecimals={false} />
-        <YAxis type="category" dataKey="agent" tick={{ fontSize: 13, fill: t.fg, fontWeight: 600 }} stroke={t.grid} width={100} />
+        <YAxis type="category" dataKey="agent" tick={{ fontSize: 13, fill: t.fg }} stroke={t.grid} width={140} />
         <Tooltip content={<ChartTooltip />} cursor={{ fill: t.grid, opacity: 0.4 }} />
         <Bar dataKey="count" name="Tickets" fill="url(#barGrad)" radius={[0, 6, 6, 0]} maxBarSize={22} />
       </BarChart>
