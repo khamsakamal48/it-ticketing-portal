@@ -60,8 +60,8 @@ export async function getKpis(f: TicketFilters) {
         COUNT(*) FILTER (WHERE status = 'closed')             AS closed,
         COUNT(*) FILTER (WHERE ticket_owner_id IS NULL)       AS unassigned,
         COUNT(*) FILTER (WHERE escalation_level > 0)          AS escalated,
-        AVG(EXTRACT(EPOCH FROM (updated_at - created_at))/3600)
-          FILTER (WHERE status = 'closed')                    AS avg_resolution_hours
+        AVG(EXTRACT(EPOCH FROM (closed_at - created_at))/3600)
+          FILTER (WHERE status = 'closed' AND closed_at IS NOT NULL) AS avg_resolution_hours
      FROM tickets t ${clause}`,
     params
   );
@@ -168,21 +168,18 @@ export async function getAgingBuckets(f: TicketFilters) {
   );
 }
 
-// First-response time (first agent message − created_at): median + SLA %.
+// First-response time (first_agent_reply_at − created_at): median + SLA %.
+// Driven off tickets.first_agent_reply_at, stamped when an agent first replies
+// in-thread or closes the ticket (n8n Main Email Processor + portal close path).
 export async function getResponseMetrics(f: TicketFilters, slaFirstResponseHours: number) {
   const { clause, params } = buildWhere(f);
   params.push(slaFirstResponseHours);
   const slaP = `$${params.length}`;
   const row = await query<{ median_first_response_h: string | null; fr_compliance_pct: string | null }>(
     `WITH fr AS (
-        SELECT t.id,
-               EXTRACT(EPOCH FROM (
-                 MIN(m.created_at) FILTER (WHERE m.sender_type = 'agent') - t.created_at
-               )) / 3600 AS hrs
+        SELECT EXTRACT(EPOCH FROM (t.first_agent_reply_at - t.created_at)) / 3600 AS hrs
           FROM tickets t
-          LEFT JOIN messages m ON m.ticket_id = t.id
           ${clause}
-          GROUP BY t.id, t.created_at
      )
      SELECT percentile_cont(0.5) WITHIN GROUP (ORDER BY hrs) AS median_first_response_h,
             ROUND(100.0 * COUNT(*) FILTER (WHERE hrs <= ${slaP})
@@ -202,7 +199,8 @@ export async function getSlaCompliance(f: TicketFilters, slaHours: number) {
     `SELECT
         COUNT(*) FILTER (
           WHERE status = 'closed'
-            AND EXTRACT(EPOCH FROM (updated_at - created_at)) / 3600 <= ${slaP}
+            AND closed_at IS NOT NULL
+            AND EXTRACT(EPOCH FROM (closed_at - created_at)) / 3600 <= ${slaP}
         )                                                    AS resolved_within,
         COUNT(*) FILTER (WHERE status = 'closed')            AS total_closed,
         COUNT(*) FILTER (

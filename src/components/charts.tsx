@@ -315,30 +315,74 @@ export function AgentBars({ data }: { data: { agent: string; count: number }[] }
 // ───────────────────────── Operational analytics charts ─────────────────────
 
 // Inflow vs outflow: created (blue) overlaid on closed (green) per day.
+const FLOW_LEGEND = [
+  { key: "created", label: "Inflow",  fill: "#0A84FF", glow: "rgba(10,132,255,0.40)", bg: "rgba(10,132,255,0.10)", border: "rgba(10,132,255,0.25)" },
+  { key: "closed",  label: "Outflow", fill: "#30D158", glow: "rgba(48,209,88,0.40)",  bg: "rgba(48,209,88,0.10)",  border: "rgba(48,209,88,0.25)"  },
+];
+
 export function FlowTrend({ data }: { data: { day: string; created: number; closed: number }[] }) {
   const t = useTokens();
   if (!data.length) return <EmptyState msg="No tickets in this range." />;
   return (
-    <ResponsiveContainer width="100%" height="100%">
-      <AreaChart data={data} margin={{ top: 5, right: 10, left: -18, bottom: 0 }}>
-        <defs>
-          <linearGradient id="flowCreated" x1="0" y1="0" x2="0" y2="1">
-            <stop offset="0%" stopColor="#0A84FF" stopOpacity={0.28} />
-            <stop offset="100%" stopColor="#0A84FF" stopOpacity={0} />
-          </linearGradient>
-          <linearGradient id="flowClosed" x1="0" y1="0" x2="0" y2="1">
-            <stop offset="0%" stopColor="#30D158" stopOpacity={0.24} />
-            <stop offset="100%" stopColor="#30D158" stopOpacity={0} />
-          </linearGradient>
-        </defs>
-        <CartesianGrid strokeDasharray="3 3" stroke={t.grid} vertical={false} />
-        <XAxis dataKey="day" tick={{ fontSize: 11, fill: t.axis }} stroke={t.grid} tickLine={false} tickFormatter={formatDayTick} />
-        <YAxis tick={{ fontSize: 11, fill: t.axis }} stroke={t.grid} tickLine={false} allowDecimals={false} width={32} />
-        <Tooltip content={<ChartTooltip />} cursor={{ stroke: t.grid }} />
-        <Area type="monotone" dataKey="created" name="Created" stroke="#0A84FF" strokeWidth={2.5} fill="url(#flowCreated)" dot={false} activeDot={{ r: 4, strokeWidth: 0, fill: "#0A84FF" }} />
-        <Area type="monotone" dataKey="closed" name="Closed" stroke="#30D158" strokeWidth={2.5} fill="url(#flowClosed)" dot={false} activeDot={{ r: 4, strokeWidth: 0, fill: "#30D158" }} />
-      </AreaChart>
-    </ResponsiveContainer>
+    <div className="flex h-full flex-col">
+      <div className="min-h-0 flex-1">
+        <ResponsiveContainer width="100%" height="100%">
+          <AreaChart data={data} margin={{ top: 5, right: 10, left: -18, bottom: 0 }}>
+            <defs>
+              <linearGradient id="flowCreated" x1="0" y1="0" x2="0" y2="1">
+                <stop offset="0%" stopColor="#0A84FF" stopOpacity={0.28} />
+                <stop offset="100%" stopColor="#0A84FF" stopOpacity={0} />
+              </linearGradient>
+              <linearGradient id="flowClosed" x1="0" y1="0" x2="0" y2="1">
+                <stop offset="0%" stopColor="#30D158" stopOpacity={0.24} />
+                <stop offset="100%" stopColor="#30D158" stopOpacity={0} />
+              </linearGradient>
+            </defs>
+            <CartesianGrid strokeDasharray="3 3" stroke={t.grid} vertical={false} />
+            <XAxis dataKey="day" tick={{ fontSize: 11, fill: t.axis }} stroke={t.grid} tickLine={false} tickFormatter={formatDayTick} />
+            <YAxis tick={{ fontSize: 11, fill: t.axis }} stroke={t.grid} tickLine={false} allowDecimals={false} width={32} />
+            <Tooltip content={<ChartTooltip />} cursor={{ stroke: t.grid }} />
+            <Area type="monotone" dataKey="created" name="Inflow"  stroke="#0A84FF" strokeWidth={2.5} fill="url(#flowCreated)" dot={false} activeDot={{ r: 4, strokeWidth: 0, fill: "#0A84FF" }} />
+            <Area type="monotone" dataKey="closed"  name="Outflow" stroke="#30D158" strokeWidth={2.5} fill="url(#flowClosed)"   dot={false} activeDot={{ r: 4, strokeWidth: 0, fill: "#30D158" }} />
+          </AreaChart>
+        </ResponsiveContainer>
+      </div>
+
+      {/* Pill legend */}
+      <div className="mt-3 flex flex-wrap justify-center gap-2">
+        {FLOW_LEGEND.map((item) => (
+          <span
+            key={item.key}
+            style={{
+              display: "inline-flex",
+              alignItems: "center",
+              gap: "5px",
+              padding: "3px 9px 3px 7px",
+              borderRadius: "999px",
+              background: item.bg,
+              border: `1px solid ${item.border}`,
+              fontSize: "11px",
+              fontWeight: 600,
+              color: item.fill,
+              fontFamily: "-apple-system,BlinkMacSystemFont,'SF Pro Display','Helvetica Neue',Arial,sans-serif",
+            }}
+          >
+            <span
+              style={{
+                display: "inline-block",
+                width: "7px",
+                height: "7px",
+                borderRadius: "50%",
+                background: item.fill,
+                boxShadow: `0 0 6px ${item.glow}`,
+                flexShrink: 0,
+              }}
+            />
+            {item.label}
+          </span>
+        ))}
+      </div>
+    </div>
   );
 }
 
@@ -393,25 +437,95 @@ export function DonutBreakdown({
       <div className="relative min-h-0 flex-1">
         <ResponsiveContainer width="100%" height="100%">
           <PieChart>
-            <Pie data={data} dataKey="value" nameKey="name" cx="50%" cy="50%" innerRadius={64} outerRadius={96} paddingAngle={3} stroke="none">
-              {data.map((d, i) => (
-                <Cell key={i} fill={colorFor(d.name).fill} />
-              ))}
+            <defs>
+              {data.map((d) => {
+                const c = colorFor(d.name);
+                return (
+                  <filter key={`glow-${d.name}`} id={`donut-glow-${d.name}`} x="-30%" y="-30%" width="160%" height="160%">
+                    <feDropShadow dx="0" dy="0" stdDeviation="5" floodColor={c.fill} floodOpacity="0.55" />
+                  </filter>
+                );
+              })}
+            </defs>
+            <Pie
+              data={data}
+              dataKey="value"
+              nameKey="name"
+              cx="50%"
+              cy="50%"
+              innerRadius={74}
+              outerRadius={106}
+              paddingAngle={3}
+              stroke="none"
+            >
+              {data.map((d, i) => {
+                const c = colorFor(d.name);
+                return <Cell key={i} fill={c.fill} filter={`url(#donut-glow-${d.name})`} />;
+              })}
             </Pie>
             <Tooltip content={<ChartTooltip />} />
           </PieChart>
         </ResponsiveContainer>
+        {/* Center: Apple-style big total + uppercase label */}
         <div className="pointer-events-none absolute inset-0 flex flex-col items-center justify-center gap-0.5">
-          <span style={{ fontSize: "30px", fontWeight: 700, letterSpacing: "-0.03em", lineHeight: 1, fontFamily: "-apple-system,BlinkMacSystemFont,'SF Pro Display','Helvetica Neue',Arial,sans-serif", color: "rgb(var(--fg))" }}>{total}</span>
-          <span style={{ fontSize: "9px", fontWeight: 700, letterSpacing: "0.16em", textTransform: "uppercase", color: "rgb(var(--subtle))", fontFamily: "-apple-system,BlinkMacSystemFont,'SF Pro Display','Helvetica Neue',Arial,sans-serif" }}>total</span>
+          <span
+            style={{
+              fontSize: "32px",
+              fontWeight: 700,
+              letterSpacing: "-0.03em",
+              lineHeight: 1,
+              fontFamily: "-apple-system,BlinkMacSystemFont,'SF Pro Display','Helvetica Neue',Arial,sans-serif",
+              color: "rgb(var(--fg))",
+            }}
+          >
+            {total}
+          </span>
+          <span
+            style={{
+              fontSize: "9px",
+              fontWeight: 700,
+              letterSpacing: "0.16em",
+              textTransform: "uppercase",
+              color: "rgb(var(--subtle))",
+              fontFamily: "-apple-system,BlinkMacSystemFont,'SF Pro Display','Helvetica Neue',Arial,sans-serif",
+            }}
+          >
+            total
+          </span>
         </div>
       </div>
+      {/* Skill-style pill legend */}
       <div className="mt-3 flex flex-wrap justify-center gap-2">
         {data.map((d) => {
           const c = colorFor(d.name);
           return (
-            <span key={d.name} style={{ display: "inline-flex", alignItems: "center", gap: "5px", padding: "3px 9px 3px 7px", borderRadius: "999px", background: c.bg, border: `1px solid ${c.border}`, fontSize: "11px", fontWeight: 600, color: c.text, fontFamily: "-apple-system,BlinkMacSystemFont,'SF Pro Display','Helvetica Neue',Arial,sans-serif" }}>
-              <span style={{ display: "inline-block", width: "7px", height: "7px", borderRadius: "50%", background: c.fill, boxShadow: `0 0 6px ${c.glow}`, flexShrink: 0 }} />
+            <span
+              key={d.name}
+              style={{
+                display: "inline-flex",
+                alignItems: "center",
+                gap: "5px",
+                padding: "3px 9px 3px 7px",
+                borderRadius: "999px",
+                background: c.bg,
+                border: `1px solid ${c.border}`,
+                fontSize: "11px",
+                fontWeight: 600,
+                color: c.text,
+                fontFamily: "-apple-system,BlinkMacSystemFont,'SF Pro Display','Helvetica Neue',Arial,sans-serif",
+              }}
+            >
+              <span
+                style={{
+                  display: "inline-block",
+                  width: "7px",
+                  height: "7px",
+                  borderRadius: "50%",
+                  background: c.fill,
+                  boxShadow: `0 0 6px ${c.glow}`,
+                  flexShrink: 0,
+                }}
+              />
               <span style={{ textTransform: "capitalize" }}>{d.name}</span>
               <span style={{ fontVariantNumeric: "tabular-nums", marginLeft: "2px", opacity: 0.85 }}>{d.value}</span>
             </span>

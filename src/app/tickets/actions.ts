@@ -133,10 +133,25 @@ export async function changeStatus(
         // Closing requires an active owner (n8n closure rule).
         assertOwnerRequiredForClose(newStatus, t.ticket_owner_id);
         if (t.status === newStatus) return null;
-        await client.query(`UPDATE tickets SET status = $1, updated_at = NOW() WHERE id = $2`, [
-          newStatus,
-          ticketId,
-        ]);
+        // Closing is an agent action: stamp closed_at (resolution-time anchor) and
+        // first_agent_reply_at (if this is the first agent touch). Reopening clears
+        // closed_at so a later re-close re-stamps it.
+        if (newStatus === "closed") {
+          await client.query(
+            `UPDATE tickets SET status = $1, updated_at = NOW(), closed_at = NOW(),
+                    last_agent_reply_at = NOW(),
+                    first_agent_reply_at = COALESCE(first_agent_reply_at, NOW())
+               WHERE id = $2`,
+            [newStatus, ticketId]
+          );
+        } else {
+          await client.query(
+            `UPDATE tickets SET status = $1, updated_at = NOW(),
+                    closed_at = CASE WHEN $1 = 'open' THEN NULL ELSE closed_at END
+               WHERE id = $2`,
+            [newStatus, ticketId]
+          );
+        }
         const action: AuditAction =
           newStatus === "closed" ? "close" : t.status === "closed" ? "reopen" : "status_change";
         await writeAudit(client, {

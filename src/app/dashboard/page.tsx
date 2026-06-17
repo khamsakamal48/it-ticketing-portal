@@ -186,7 +186,6 @@ export default async function DashboardPage({
           <KpiCard label="Open" value={n(kpis?.open)} accent="amber" icon={Inbox} hero />
           <KpiCard label="Unassigned" value={n(kpis?.unassigned)} accent="red" icon={UserX} hero />
           <KpiCard label="Escalated" value={n(kpis?.escalated)} accent="red" icon={AlertTriangle} hero />
-          <KpiCard label="Avg Resolution" value={avgRes} accent="green" icon={Timer} hero />
           <KpiCard label="Total Tickets" value={n(kpis?.total)} accent="blue" icon={Ticket} hero />
           <KpiCard label="Closed" value={n(kpis?.closed)} accent="green" icon={Archive} hero />
         </div>
@@ -194,6 +193,7 @@ export default async function DashboardPage({
         {/* Responsiveness / SLA KPI strip — moved up to sit just below the main KPIs */}
         <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(150px, 1fr))", gap: "12px" }}>
           <KpiCard label="First Response" value={medianFr} sub="median" accent="blue" icon={Gauge} />
+          <KpiCard label="Avg Resolution" value={avgRes} accent="green" icon={Timer} hero />
           <KpiCard label="SLA Compliance" value={slaCompliancePct} sub={`within ${slaEscalationHours}h · ${totalClosed} closed`} accent="green" icon={ShieldCheck} />
           <KpiCard label="Breaching Now" value={breachingNow} sub={`open > ${slaEscalationHours}h`} accent="red" icon={Flame} />
           <KpiCard label="Net Backlog" value={netLabel} sub={netDelta > 0 ? "growing" : netDelta < 0 ? "shrinking" : "flat"} accent="slate" icon={TrendingUp} />
@@ -251,10 +251,10 @@ export default async function DashboardPage({
                     <table className="w-full text-sm">
                       <thead>
                         <tr className="text-subtle" style={{ fontSize: "10px", textTransform: "uppercase", letterSpacing: "0.1em" }}>
-                          <th className="px-2 py-1.5 text-left font-semibold">Agent</th>
-                          <th className="px-2 py-1.5 text-right font-semibold">Resolved</th>
-                          <th className="px-2 py-1.5 text-right font-semibold">Avg h</th>
-                          <th className="px-2 py-1.5 text-right font-semibold">Open</th>
+                          <th className="w-full px-2 py-1.5 text-left font-semibold">Agent</th>
+                          <th className="whitespace-nowrap px-2 py-1.5 text-right font-semibold">Resolved</th>
+                          <th className="whitespace-nowrap px-2 py-1.5 text-right font-semibold">Avg h</th>
+                          <th className="whitespace-nowrap px-2 py-1.5 text-right font-semibold">Open</th>
                         </tr>
                       </thead>
                       <tbody>
@@ -263,10 +263,10 @@ export default async function DashboardPage({
                         )}
                         {agentPerf.map((r) => (
                           <tr key={r.agent} className="border-t border-border/60">
-                            <td className="px-2 py-1.5 text-muted">{r.agent}</td>
-                            <td className="tabular px-2 py-1.5 text-right text-fg">{n(r.resolved)}</td>
-                            <td className="tabular px-2 py-1.5 text-right text-muted">{r.avg_resolution_h != null ? n(r.avg_resolution_h).toFixed(1) : "—"}</td>
-                            <td className="tabular px-2 py-1.5 text-right text-muted">{n(r.open_load)}</td>
+                            <td className="px-2 py-1.5 font-medium text-fg">{r.agent}</td>
+                            <td className="tabular whitespace-nowrap px-2 py-1.5 text-right text-fg">{n(r.resolved)}</td>
+                            <td className="tabular whitespace-nowrap px-2 py-1.5 text-right text-muted">{r.avg_resolution_h != null ? n(r.avg_resolution_h).toFixed(1) : "—"}</td>
+                            <td className="tabular whitespace-nowrap px-2 py-1.5 text-right text-muted">{n(r.open_load)}</td>
                           </tr>
                         ))}
                       </tbody>
