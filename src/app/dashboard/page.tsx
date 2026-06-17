@@ -248,31 +248,25 @@ export default async function DashboardPage({
                     </h3>
                   </div>
                   <div className="overflow-x-auto">
-                    <table className="w-full table-fixed text-sm">
-                      <colgroup>
-                        <col style={{ width: "52%" }} />
-                        <col style={{ width: "18%" }} />
-                        <col style={{ width: "17%" }} />
-                        <col style={{ width: "13%" }} />
-                      </colgroup>
+                    <table className="w-full text-sm">
                       <thead>
                         <tr className="text-subtle" style={{ fontSize: "10px", textTransform: "uppercase", letterSpacing: "0.1em" }}>
-                          <th className="px-3 py-2 text-left font-semibold">Agent</th>
-                          <th className="px-3 py-2 text-right font-semibold">Resolved</th>
-                          <th className="px-3 py-2 text-right font-semibold">Avg h</th>
-                          <th className="px-3 py-2 text-right font-semibold">Open</th>
+                          <th className="py-2 pl-3 pr-4 text-left font-semibold">Agent</th>
+                          <th className="py-2 px-4 text-right font-semibold" style={{ width: "96px" }}>Resolved</th>
+                          <th className="py-2 px-4 text-right font-semibold" style={{ width: "88px" }}>Avg hrs.</th>
+                          <th className="py-2 pl-4 pr-3 text-right font-semibold" style={{ width: "72px" }}>Open</th>
                         </tr>
                       </thead>
                       <tbody>
                         {agentPerf.length === 0 && (
-                          <tr><td colSpan={4} className="px-3 py-3 text-subtle">No tickets in range.</td></tr>
+                          <tr><td colSpan={4} className="py-3 pl-3 pr-4 text-subtle">No tickets in range.</td></tr>
                         )}
                         {agentPerf.map((r) => (
                           <tr key={r.agent} className="border-t border-border/60">
-                            <td className="px-3 py-2 font-medium text-fg">{r.agent}</td>
-                            <td className="tabular px-3 py-2 text-right text-fg">{n(r.resolved)}</td>
-                            <td className="tabular px-3 py-2 text-right text-muted">{r.avg_resolution_h != null ? n(r.avg_resolution_h).toFixed(1) : "—"}</td>
-                            <td className="tabular px-3 py-2 text-right text-muted">{n(r.open_load)}</td>
+                            <td className="py-2 pl-3 pr-4 font-medium text-fg">{r.agent}</td>
+                            <td className="tabular-nums py-2 px-4 text-right text-fg">{n(r.resolved)}</td>
+                            <td className="tabular-nums py-2 px-4 text-right text-muted">{r.avg_resolution_h != null ? n(r.avg_resolution_h).toFixed(1) : "—"}</td>
+                            <td className="tabular-nums py-2 pl-4 pr-3 text-right text-muted">{n(r.open_load)}</td>
                           </tr>
                         ))}
                       </tbody>
