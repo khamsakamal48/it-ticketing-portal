@@ -3,39 +3,37 @@ import { cn } from "@/lib/utils";
 
 type Accent = "blue" | "amber" | "green" | "red" | "slate";
 
+/* ─────────────────────────────────────────────────────────────────────────
+   Exact gradients + color tokens from the leadership-deck skill:
+   Blue  → linear-gradient(135deg,#0A84FF,#5E5CE6)
+   Green → linear-gradient(135deg,#30D158,#00C7BE)
+   Pink  → linear-gradient(135deg,#FF375F,#BF5AF2)
+   Amber → linear-gradient(135deg,#FF9F0A,#FF375F)
+   Slate → linear-gradient(135deg,#5E5CE6,#BF5AF2)   (indigo→purple)
+   ───────────────────────────────────────────────────────────────────────── */
 const ACCENT: Record<
   Accent,
-  { gradient: string; shadow: string; overlay: string }
+  { gradient: string; shadow: string }
 > = {
-  /* Electric Blue — Apple "iPhone" blue */
   blue: {
-    gradient: "linear-gradient(145deg, #003FA3 0%, #0071E3 48%, #34AADC 100%)",
-    shadow:   "0 6px 28px rgba(0,113,227,0.55), 0 1px 6px rgba(0,63,163,0.35)",
-    overlay:  "radial-gradient(ellipse at 25% 18%, rgba(255,255,255,0.28) 0%, transparent 58%)",
+    gradient: "linear-gradient(135deg,#0A84FF,#5E5CE6)",
+    shadow:   "inset 0 1px 0 rgba(255,255,255,0.30), 0 8px 32px -8px rgba(10,132,255,0.55), 0 2px 8px rgba(94,92,230,0.25)",
   },
-  /* Solar Orange — Apple "energy" orange */
   amber: {
-    gradient: "linear-gradient(145deg, #B84000 0%, #FF6200 48%, #FF9F0A 100%)",
-    shadow:   "0 6px 28px rgba(255,98,0,0.55), 0 1px 6px rgba(184,64,0,0.35)",
-    overlay:  "radial-gradient(ellipse at 25% 18%, rgba(255,255,255,0.28) 0%, transparent 58%)",
+    gradient: "linear-gradient(135deg,#FF9F0A,#FF375F)",
+    shadow:   "inset 0 1px 0 rgba(255,255,255,0.30), 0 8px 32px -8px rgba(255,159,10,0.55), 0 2px 8px rgba(255,55,95,0.25)",
   },
-  /* Vivid Emerald — Apple "health" green */
   green: {
-    gradient: "linear-gradient(145deg, #006A38 0%, #30D158 48%, #A8FFBD 100%)",
-    shadow:   "0 6px 28px rgba(48,209,88,0.50), 0 1px 6px rgba(0,106,56,0.35)",
-    overlay:  "radial-gradient(ellipse at 25% 18%, rgba(255,255,255,0.28) 0%, transparent 58%)",
+    gradient: "linear-gradient(135deg,#30D158,#00C7BE)",
+    shadow:   "inset 0 1px 0 rgba(255,255,255,0.30), 0 8px 32px -8px rgba(48,209,88,0.55), 0 2px 8px rgba(0,199,190,0.25)",
   },
-  /* Crimson Pink — Apple "alerts" red */
   red: {
-    gradient: "linear-gradient(145deg, #8B0038 0%, #FF2D55 48%, #FF82A4 100%)",
-    shadow:   "0 6px 28px rgba(255,45,85,0.55), 0 1px 6px rgba(139,0,56,0.35)",
-    overlay:  "radial-gradient(ellipse at 25% 18%, rgba(255,255,255,0.28) 0%, transparent 58%)",
+    gradient: "linear-gradient(135deg,#FF375F,#BF5AF2)",
+    shadow:   "inset 0 1px 0 rgba(255,255,255,0.30), 0 8px 32px -8px rgba(255,55,95,0.55), 0 2px 8px rgba(191,90,242,0.25)",
   },
-  /* Deep Violet — Apple "accessibility" purple */
   slate: {
-    gradient: "linear-gradient(145deg, #3B1A8C 0%, #7B2FBE 48%, #BF5AF2 100%)",
-    shadow:   "0 6px 28px rgba(123,47,190,0.55), 0 1px 6px rgba(59,26,140,0.35)",
-    overlay:  "radial-gradient(ellipse at 25% 18%, rgba(255,255,255,0.28) 0%, transparent 58%)",
+    gradient: "linear-gradient(135deg,#5E5CE6,#BF5AF2)",
+    shadow:   "inset 0 1px 0 rgba(255,255,255,0.30), 0 8px 32px -8px rgba(94,92,230,0.55), 0 2px 8px rgba(191,90,242,0.25)",
   },
 };
 
@@ -58,47 +56,37 @@ export function KpiCard({
 
   return (
     <div
-      className={cn(
-        "relative overflow-hidden rounded-2xl",
-        hero ? "p-5" : "p-4",
-      )}
+      className={cn("relative overflow-hidden", hero ? "p-5" : "p-4")}
       style={{
         background: a.gradient,
         boxShadow: a.shadow,
-        border: "1px solid rgba(255,255,255,0.18)",
+        borderRadius: "18px",
         fontFamily:
-          "-apple-system, BlinkMacSystemFont, 'SF Pro Display', 'Helvetica Neue', Arial, sans-serif",
+          "-apple-system,BlinkMacSystemFont,'SF Pro Display','SF Pro Text','Segoe UI','Helvetica Neue',Arial,sans-serif",
       }}
     >
-      {/* Apple-style radial light sheen — top-left sphere highlight */}
+      {/* Radial sheen overlay — mix-blend-mode:overlay (leadership-deck spec) */}
       <span
         aria-hidden
         className="pointer-events-none absolute inset-0"
-        style={{ background: a.overlay }}
-      />
-      {/* Top edge highlight line */}
-      <span
-        aria-hidden
-        className="pointer-events-none absolute inset-x-0 top-0 h-px"
-        style={{ background: "rgba(255,255,255,0.45)" }}
-      />
-      {/* Bottom depth fade */}
-      <span
-        aria-hidden
-        className="pointer-events-none absolute inset-x-0 bottom-0 h-1/3"
-        style={{ background: "linear-gradient(to top, rgba(0,0,0,0.18), transparent)" }}
+        style={{
+          background:
+            "radial-gradient(ellipse at 30% 20%, rgba(255,255,255,0.38) 0%, transparent 62%)",
+          mixBlendMode: "overlay",
+          borderRadius: "18px",
+        }}
       />
 
       {/* Label row + icon */}
-      <div className="flex items-start justify-between gap-2">
+      <div className="relative flex items-start justify-between gap-2">
         <span
           className="leading-none"
           style={{
-            fontSize: "11px",
-            fontWeight: 600,
-            letterSpacing: "0.08em",
+            fontSize: "10px",
+            fontWeight: 700,
+            letterSpacing: "0.14em",
             textTransform: "uppercase",
-            color: "rgba(255,255,255,0.85)",
+            color: "rgba(255,255,255,0.82)",
           }}
         >
           {label}
@@ -106,43 +94,42 @@ export function KpiCard({
 
         {Icon && (
           <span
-            className="flex shrink-0 items-center justify-center rounded-xl"
+            className="flex shrink-0 items-center justify-center"
             style={{
-              width: hero ? "32px" : "28px",
-              height: hero ? "32px" : "28px",
-              background: "rgba(255,255,255,0.22)",
-              backdropFilter: "blur(4px)",
-              border: "1px solid rgba(255,255,255,0.30)",
+              width: hero ? "30px" : "26px",
+              height: hero ? "30px" : "26px",
+              borderRadius: "10px",
+              background: "rgba(255,255,255,0.20)",
+              border: "1px solid rgba(255,255,255,0.28)",
               color: "#ffffff",
             }}
           >
-            <Icon size={hero ? 16 : 14} />
+            <Icon size={hero ? 15 : 13} />
           </span>
         )}
       </div>
 
-      {/* KPI value */}
+      {/* KPI value — 28px / 700 / -0.02em per skill spec */}
       <div
-        className="tabular mt-2 leading-none tracking-tight"
+        className="relative tabular mt-2 leading-none"
         style={{
-          fontSize: hero ? "34px" : "26px",
+          fontSize: hero ? "28px" : "24px",
           fontWeight: 700,
           color: "#ffffff",
           letterSpacing: "-0.02em",
-          textShadow: "0 1px 6px rgba(0,0,0,0.18)",
         }}
       >
         {value}
       </div>
 
-      {/* Sub / delta line */}
+      {/* Sub / delta */}
       {sub && (
         <div
-          className="mt-1.5 leading-tight"
+          className="relative mt-1.5 leading-tight"
           style={{
-            fontSize: "12px",
+            fontSize: "11px",
             fontWeight: 500,
-            color: "rgba(255,255,255,0.80)",
+            color: "rgba(255,255,255,0.78)",
           }}
         >
           {sub}
