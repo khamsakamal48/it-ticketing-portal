@@ -1,0 +1,17 @@
+# deps
+/node_modules
+# next
+/.next
+/out
+# env / secrets
+.env
+.env*.local
+.env.production
+# docker secrets / tunnel keys
+/docker/secrets
+*.key
+# misc
+.DS_Store
+*.log
+/coverage
+next-env.d.ts

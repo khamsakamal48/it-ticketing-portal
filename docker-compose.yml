@@ -1,0 +1,48 @@
+# IT Ticketing Portal — Docker Compose
+#
+# Topology:
+#   tailscale : VPN sidecar that joins your tailnet (the AWS Postgres box must
+#               also be on the same tailnet). The web container shares this
+#               network namespace, so DATABASE_URL can use the AWS box's
+#               Tailscale MagicDNS name and the DB is NEVER publicly exposed.
+#   web       : the Next.js portal (network_mode = tailscale).
+#
+# Setup: put a Tailscale auth key in docker/secrets/ts_authkey (gitignored).
+#        Set DATABASE_URL host to the AWS box, e.g.
+#        postgresql://portal_app:***@aws-ticketing-db:5432/it_ticketing_system
+
+services:
+  tailscale:
+    image: tailscale/tailscale:latest
+    hostname: ticketing-portal
+    environment:
+      - TS_STATE_DIR=/var/lib/tailscale
+      - TS_AUTHKEY_FILE=/run/secrets/ts_authkey
+      - TS_USERSPACE=true
+      - TS_EXTRA_ARGS=--accept-routes
+    volumes:
+      - tailscale-state:/var/lib/tailscale
+    secrets:
+      - ts_authkey
+    cap_add:
+      - NET_ADMIN
+    # The web container shares this namespace, so publish its port here.
+    ports:
+      - "3000:3000"
+    restart: unless-stopped
+
+  web:
+    build: .
+    network_mode: service:tailscale
+    depends_on:
+      - tailscale
+    env_file:
+      - .env
+    restart: unless-stopped
+
+volumes:
+  tailscale-state:
+
+secrets:
+  ts_authkey:
+    file: ./docker/secrets/ts_authkey
