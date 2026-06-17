@@ -16,10 +16,12 @@ export function Filters({
   agents,
   showSearch = false,
   showExport = false,
+  showFacets = true,
 }: {
   agents: Agent[];
   showSearch?: boolean;
   showExport?: boolean;
+  showFacets?: boolean; // status/priority/agent dropdowns (hidden on dashboard)
 }) {
   const router = useRouter();
   const pathname = usePathname();
@@ -56,36 +58,40 @@ export function Filters({
           onChange={(v) => setParam("to", v)}
         />
       </div>
-      <div>
-        <label className="label" htmlFor="f-status">Status</label>
-        <select id="f-status" className="input" defaultValue={sp.get("status") ?? ""} onChange={(e) => setParam("status", e.target.value)}>
-          <option value="">All</option>
-          <option value="open">Open</option>
-          <option value="closed">Closed</option>
-        </select>
-      </div>
-      <div>
-        <label className="label" htmlFor="f-priority">Priority</label>
-        <select id="f-priority" className="input" defaultValue={sp.get("priority") ?? ""} onChange={(e) => setParam("priority", e.target.value)}>
-          <option value="">All</option>
-          <option value="critical">Critical</option>
-          <option value="high">High</option>
-          <option value="medium">Medium</option>
-          <option value="low">Low</option>
-        </select>
-      </div>
-      <div>
-        <label className="label" htmlFor="f-agent">Agent</label>
-        <select id="f-agent" className="input" defaultValue={sp.get("owner") ?? ""} onChange={(e) => setParam("owner", e.target.value)}>
-          <option value="">All</option>
-          <option value="unassigned">Unassigned</option>
-          {agents.map((a) => (
-            <option key={a.id} value={a.id}>
-              {a.name}
-            </option>
-          ))}
-        </select>
-      </div>
+      {showFacets && (
+        <>
+          <div>
+            <label className="label" htmlFor="f-status">Status</label>
+            <select id="f-status" className="input" defaultValue={sp.get("status") ?? ""} onChange={(e) => setParam("status", e.target.value)}>
+              <option value="">All</option>
+              <option value="open">Open</option>
+              <option value="closed">Closed</option>
+            </select>
+          </div>
+          <div>
+            <label className="label" htmlFor="f-priority">Priority</label>
+            <select id="f-priority" className="input" defaultValue={sp.get("priority") ?? ""} onChange={(e) => setParam("priority", e.target.value)}>
+              <option value="">All</option>
+              <option value="critical">Critical</option>
+              <option value="high">High</option>
+              <option value="medium">Medium</option>
+              <option value="low">Low</option>
+            </select>
+          </div>
+          <div>
+            <label className="label" htmlFor="f-agent">Agent</label>
+            <select id="f-agent" className="input" defaultValue={sp.get("owner") ?? ""} onChange={(e) => setParam("owner", e.target.value)}>
+              <option value="">All</option>
+              <option value="unassigned">Unassigned</option>
+              {agents.map((a) => (
+                <option key={a.id} value={a.id}>
+                  {a.name}
+                </option>
+              ))}
+            </select>
+          </div>
+        </>
+      )}
       {showSearch && (
         <div className="min-w-[180px] flex-1">
           <label className="label" htmlFor="f-search">Search</label>
