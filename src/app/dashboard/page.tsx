@@ -82,14 +82,14 @@ export default async function DashboardPage({
 
         {/* KPI metrics — single row */}
         <div className="overflow-x-auto">
-        <div className="grid grid-cols-6 gap-3 min-w-[720px]">
-          <KpiCard label="Open" value={n(kpis?.open)} accent="amber" icon={Inbox} hero />
-          <KpiCard label="Unassigned" value={n(kpis?.unassigned)} accent="red" icon={UserX} hero />
-          <KpiCard label="Escalated" value={n(kpis?.escalated)} accent="red" icon={AlertTriangle} hero />
-          <KpiCard label="Avg Resolution" value={avgRes} accent="green" icon={Timer} hero />
-          <KpiCard label="Total Tickets" value={n(kpis?.total)} accent="blue" icon={Ticket} hero />
-          <KpiCard label="Closed" value={n(kpis?.closed)} accent="green" icon={Archive} hero />
-        </div>
+          <div style={{ display: "flex", flexDirection: "row", gap: "12px", minWidth: "720px" }}>
+            <div style={{ flex: 1 }}><KpiCard label="Open" value={n(kpis?.open)} accent="amber" icon={Inbox} hero /></div>
+            <div style={{ flex: 1 }}><KpiCard label="Unassigned" value={n(kpis?.unassigned)} accent="red" icon={UserX} hero /></div>
+            <div style={{ flex: 1 }}><KpiCard label="Escalated" value={n(kpis?.escalated)} accent="red" icon={AlertTriangle} hero /></div>
+            <div style={{ flex: 1 }}><KpiCard label="Avg Resolution" value={avgRes} accent="green" icon={Timer} hero /></div>
+            <div style={{ flex: 1 }}><KpiCard label="Total Tickets" value={n(kpis?.total)} accent="blue" icon={Ticket} hero /></div>
+            <div style={{ flex: 1 }}><KpiCard label="Closed" value={n(kpis?.closed)} accent="green" icon={Archive} hero /></div>
+          </div>
         </div>
 
         <div className="grid grid-cols-1 gap-4 lg:grid-cols-3">
