@@ -1,0 +1,51 @@
+# IT Ticketing Portal — Podman Compose
+#
+# Run with:
+#   podman compose -f docker-compose.podman.yml up -d --build
+#   (or: podman-compose -f docker-compose.podman.yml up -d --build)
+#
+# Topology:
+#   web : Next.js portal in a bridge network. The Postgres DB lives on the
+#         same host machine. Podman exposes the host to containers as the
+#         built-in alias "host.containers.internal" — no extra_hosts entry
+#         and no Tailscale needed when the DB is local to the server.
+#
+#         Set DATABASE_URL in .env to use that hostname, e.g.:
+#           postgresql://portal_app:***@host.containers.internal:5432/it_ticketing_system
+#
+# ── ROOTLESS PODMAN NOTE ───────────────────────────────────────────────
+#   Reaching a service on the host loopback (127.0.0.1:5432) from a
+#   rootless container requires host-loopback access. Two options:
+#
+#   A) Make Postgres listen on the host bridge IP (recommended):
+#        listen_addresses = '*'   in postgresql.conf
+#        + a pg_hba.conf line allowing the podman subnet (10.88.0.0/16).
+#      Then host.containers.internal works out of the box.
+#
+#   B) Keep Postgres on loopback and enable host-loopback in the netns
+#      by uncommenting the network_mode line below (pasta/slirp4netns).
+#
+# ── SELINUX (RHEL/Fedora/CentOS) ───────────────────────────────────────
+#   If you later add bind-mount volumes, append :Z to them so Podman
+#   relabels for SELinux, e.g.  - ./data:/app/data:Z
+#
+# Future (Tailscale): see docker-compose.yml.bak for the sidecar pattern.
+
+services:
+  web:
+    build: .
+    image: it-ticketing-portal:latest
+    ports:
+      - "3000:3000"
+    env_file:
+      - .env
+    # Built-in Podman alias to the host; no extra_hosts needed.
+    # Uncomment for rootless host-loopback access (option B above):
+    # network_mode: "pasta:--map-gw"
+    restart: unless-stopped
+    # Podman honors Dockerfile HEALTHCHECK; surface it to compose:
+    healthcheck:
+      test: ["CMD", "wget", "-qO-", "http://localhost:3000/api/health"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
