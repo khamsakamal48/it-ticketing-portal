@@ -127,10 +127,10 @@ export function NavShell({
   };
 
   return (
-    <div className="flex min-h-dvh">
+    <div className="flex h-dvh overflow-hidden">
       {/* Desktop sidebar */}
       <aside
-        className={`hidden flex-col border-r border-border bg-surface/60 backdrop-blur-xl transition-[width] duration-200 md:flex sticky top-0 h-dvh overflow-y-auto ${
+        className={`hidden flex-col border-r border-border bg-surface/60 backdrop-blur-xl transition-[width] duration-200 md:flex h-full overflow-y-auto ${
           collapsed ? "w-[72px]" : "w-60"
         }`}
       >
@@ -182,7 +182,7 @@ export function NavShell({
       )}
 
       {/* Main column */}
-      <div className="flex min-w-0 flex-1 flex-col overflow-x-hidden">
+      <div className="flex min-w-0 flex-1 flex-col overflow-x-hidden overflow-y-auto">
         {/* Sticky top bar (both breakpoints) */}
         <header className="sticky top-0 z-20 flex items-center justify-between gap-3 border-b border-border bg-bg/70 px-4 py-3 backdrop-blur-xl sm:px-6">
           <div className="flex items-center gap-3">
