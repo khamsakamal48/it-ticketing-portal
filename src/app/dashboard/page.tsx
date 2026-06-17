@@ -248,25 +248,31 @@ export default async function DashboardPage({
                     </h3>
                   </div>
                   <div className="overflow-x-auto">
-                    <table className="w-full text-sm">
+                    <table className="w-full table-fixed text-sm">
+                      <colgroup>
+                        <col style={{ width: "52%" }} />
+                        <col style={{ width: "18%" }} />
+                        <col style={{ width: "17%" }} />
+                        <col style={{ width: "13%" }} />
+                      </colgroup>
                       <thead>
                         <tr className="text-subtle" style={{ fontSize: "10px", textTransform: "uppercase", letterSpacing: "0.1em" }}>
-                          <th className="w-full px-2 py-1.5 text-left font-semibold">Agent</th>
-                          <th className="whitespace-nowrap px-2 py-1.5 text-right font-semibold">Resolved</th>
-                          <th className="whitespace-nowrap px-2 py-1.5 text-right font-semibold">Avg h</th>
-                          <th className="whitespace-nowrap px-2 py-1.5 text-right font-semibold">Open</th>
+                          <th className="px-3 py-2 text-left font-semibold">Agent</th>
+                          <th className="px-3 py-2 text-right font-semibold">Resolved</th>
+                          <th className="px-3 py-2 text-right font-semibold">Avg h</th>
+                          <th className="px-3 py-2 text-right font-semibold">Open</th>
                         </tr>
                       </thead>
                       <tbody>
                         {agentPerf.length === 0 && (
-                          <tr><td colSpan={4} className="px-2 py-3 text-subtle">No tickets in range.</td></tr>
+                          <tr><td colSpan={4} className="px-3 py-3 text-subtle">No tickets in range.</td></tr>
                         )}
                         {agentPerf.map((r) => (
                           <tr key={r.agent} className="border-t border-border/60">
-                            <td className="px-2 py-1.5 font-medium text-fg">{r.agent}</td>
-                            <td className="tabular whitespace-nowrap px-2 py-1.5 text-right text-fg">{n(r.resolved)}</td>
-                            <td className="tabular whitespace-nowrap px-2 py-1.5 text-right text-muted">{r.avg_resolution_h != null ? n(r.avg_resolution_h).toFixed(1) : "—"}</td>
-                            <td className="tabular whitespace-nowrap px-2 py-1.5 text-right text-muted">{n(r.open_load)}</td>
+                            <td className="px-3 py-2 font-medium text-fg">{r.agent}</td>
+                            <td className="tabular px-3 py-2 text-right text-fg">{n(r.resolved)}</td>
+                            <td className="tabular px-3 py-2 text-right text-muted">{r.avg_resolution_h != null ? n(r.avg_resolution_h).toFixed(1) : "—"}</td>
+                            <td className="tabular px-3 py-2 text-right text-muted">{n(r.open_load)}</td>
                           </tr>
                         ))}
                       </tbody>
