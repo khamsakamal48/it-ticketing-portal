@@ -17,23 +17,23 @@ const ACCENT: Record<
 > = {
   blue: {
     gradient: "linear-gradient(135deg,#0A84FF,#5E5CE6)",
-    shadow:   "inset 0 1px 0 rgba(255,255,255,0.30), 0 8px 32px -8px rgba(10,132,255,0.55), 0 2px 8px rgba(94,92,230,0.25)",
+    shadow:   "inset 0 1px 0 rgba(255,255,255,0.30), 0 6px 18px -4px rgba(10,132,255,0.45)",
   },
   amber: {
     gradient: "linear-gradient(135deg,#FF9F0A,#FF375F)",
-    shadow:   "inset 0 1px 0 rgba(255,255,255,0.30), 0 8px 32px -8px rgba(255,159,10,0.55), 0 2px 8px rgba(255,55,95,0.25)",
+    shadow:   "inset 0 1px 0 rgba(255,255,255,0.30), 0 6px 18px -4px rgba(255,159,10,0.45)",
   },
   green: {
     gradient: "linear-gradient(135deg,#30D158,#00C7BE)",
-    shadow:   "inset 0 1px 0 rgba(255,255,255,0.30), 0 8px 32px -8px rgba(48,209,88,0.55), 0 2px 8px rgba(0,199,190,0.25)",
+    shadow:   "inset 0 1px 0 rgba(255,255,255,0.30), 0 6px 18px -4px rgba(48,209,88,0.45)",
   },
   red: {
     gradient: "linear-gradient(135deg,#FF375F,#BF5AF2)",
-    shadow:   "inset 0 1px 0 rgba(255,255,255,0.30), 0 8px 32px -8px rgba(255,55,95,0.55), 0 2px 8px rgba(191,90,242,0.25)",
+    shadow:   "inset 0 1px 0 rgba(255,255,255,0.30), 0 6px 18px -4px rgba(255,55,95,0.45)",
   },
   slate: {
     gradient: "linear-gradient(135deg,#5E5CE6,#BF5AF2)",
-    shadow:   "inset 0 1px 0 rgba(255,255,255,0.30), 0 8px 32px -8px rgba(94,92,230,0.55), 0 2px 8px rgba(191,90,242,0.25)",
+    shadow:   "inset 0 1px 0 rgba(255,255,255,0.30), 0 6px 18px -4px rgba(94,92,230,0.45)",
   },
 };
 
@@ -83,10 +83,11 @@ export function KpiCard({
           className="leading-none"
           style={{
             fontSize: "10px",
-            fontWeight: 800,
+            fontWeight: 900,
             letterSpacing: "0.14em",
             textTransform: "uppercase",
-            color: "rgba(255,255,255,0.82)",
+            color: "#ffffff",
+            textShadow: "0 1px 4px rgba(0,0,0,0.35)",
           }}
         >
           {label}
