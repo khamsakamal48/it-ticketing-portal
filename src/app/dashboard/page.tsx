@@ -203,22 +203,19 @@ export default async function DashboardPage({
           </p>
         </div>
 
-        {/* KPI metrics — responsive grid, single row on wide screens */}
+        {/* KPI metrics — single responsive grid so all 10 cards flow/wrap
+            together instead of two grids each leaving orphan rows. */}
         <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(150px, 1fr))", gap: "12px" }}>
           <KpiCard label="Open" value={n(kpis?.open)} accent="amber" icon={Inbox} hero href={queueHref({ status: "open" })} />
           <KpiCard label="Unassigned" value={n(kpis?.unassigned)} accent="red" icon={UserX} hero href={queueHref({ owner: "unassigned" })} />
           <KpiCard label="Escalated" value={n(kpis?.escalated)} accent="red" icon={AlertTriangle} hero href={queueHref({ escalated: "1" })} />
           <KpiCard label="Total Tickets" value={n(kpis?.total)} accent="blue" icon={Ticket} hero href={queueHref({})} />
           <KpiCard label="Closed" value={n(kpis?.closed)} accent="green" icon={Archive} hero href={queueHref({ status: "closed" })} />
-        </div>
-
-        {/* Responsiveness / SLA KPI strip — moved up to sit just below the main KPIs */}
-        <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(150px, 1fr))", gap: "12px" }}>
-          <KpiCard label="First Response" value={medianFr} sub="median" accent="blue" icon={Gauge} href={queueHref({})} />
+          <KpiCard label="First Response" value={medianFr} sub="median" accent="blue" icon={Gauge} hero href={queueHref({})} />
           <KpiCard label="Avg Resolution" value={avgRes} accent="green" icon={Timer} hero href={queueHref({ status: "closed" })} />
-          <KpiCard label="SLA Compliance" value={slaCompliancePct} sub={`within ${slaEscalationHours}h · ${totalClosed} closed`} accent="green" icon={ShieldCheck} href={queueHref({ status: "closed" })} />
-          <KpiCard label="Breaching Now" value={breachingNow} sub={`open > ${slaEscalationHours}h`} accent="red" icon={Flame} href={queueHref({ status: "open", minageh: String(slaEscalationHours) })} />
-          <KpiCard label="Net Backlog" value={netLabel} sub={netDelta > 0 ? "growing" : netDelta < 0 ? "shrinking" : "flat"} accent="slate" icon={TrendingUp} href={queueHref({})} />
+          <KpiCard label="SLA Compliance" value={slaCompliancePct} sub={`within ${slaEscalationHours}h · ${totalClosed} closed`} accent="green" icon={ShieldCheck} hero href={queueHref({ status: "closed" })} />
+          <KpiCard label="Breaching Now" value={breachingNow} sub={`open > ${slaEscalationHours}h`} accent="red" icon={Flame} hero href={queueHref({ status: "open", minageh: String(slaEscalationHours) })} />
+          <KpiCard label="Net Backlog" value={netLabel} sub={netDelta > 0 ? "growing" : netDelta < 0 ? "shrinking" : "flat"} accent="slate" icon={TrendingUp} hero href={queueHref({})} />
         </div>
 
         <div className="grid grid-cols-1 gap-4 lg:grid-cols-3">

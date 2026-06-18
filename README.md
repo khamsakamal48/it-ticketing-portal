@@ -49,7 +49,19 @@ DATABASE_URL=postgresql://portal_app:***@HOST:5432/it_ticketing_system \
    AUTH_MICROSOFT_ENTRA_ID_ISSUER=https://login.microsoftonline.com/<tenant id>/v2.0
    AUTH_SECRET=<openssl rand -base64 32>
    AUTH_URL=https://<portal-domain>
+   # n8n integration — portal writes to Postgres directly, but email stays owned
+   # by n8n. Closing or reassigning a ticket POSTs to these webhooks (best-effort;
+   # the DB change still commits if the call fails). Token must match the IF
+   # "Verify Webhook Token" nodes in the n8n Main Email Processor.
+   N8N_CLOSE_WEBHOOK_URL=https://<n8n-host>/webhook/portal-ticket-closed
+   N8N_ASSIGN_WEBHOOK_URL=https://<n8n-host>/webhook/portal-ticket-assigned
+   N8N_WEBHOOK_TOKEN=<shared secret, same value for both webhooks>
    ```
+
+> **n8n side-effects:** **Closing** a ticket triggers the customer closure email;
+> **reassigning** a ticket triggers the team notification email (not to the
+> individual agent; self-assignments send nothing). Both are best-effort — if n8n
+> is unreachable the action still saves and the UI shows a non-blocking warning.
 
 > **Who can sign in:** an O365 identity is allowed in **only** if its email
 > matches an **active** row in the `users` table. Role (`agent`/`manager`/`admin`)
