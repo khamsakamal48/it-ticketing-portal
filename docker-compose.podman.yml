@@ -43,7 +43,7 @@ services:
     # Postgres container (n8n-postgres) by name over container DNS.
     networks:
       - n8n-net
-    restart: unless-stopped
+    restart: always
     # Podman honors Dockerfile HEALTHCHECK; surface it to compose:
     healthcheck:
       test: ["CMD", "wget", "-qO-", "http://127.0.0.1:3000/api/health"]
