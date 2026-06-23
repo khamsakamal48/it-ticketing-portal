@@ -17,7 +17,6 @@ import { parseFilters } from "@/lib/filters";
 import { titleCase } from "@/lib/utils";
 import { getConfigValue } from "@/lib/config";
 import {
-  Ticket,
   AlertTriangle,
   UserX,
   Timer,
@@ -97,6 +96,11 @@ export default async function DashboardPage({
   ]);
 
   const n = (v: string | null | undefined) => Number(v ?? 0);
+  const totalTickets = n(kpis?.total);
+  const share = (v: string | null | undefined) => {
+    const pct = totalTickets > 0 ? Math.round((n(v) / totalTickets) * 100) : 0;
+    return `out of ${totalTickets} · ${pct}%`;
+  };
   const avgRes = kpis?.avg_resolution_hours ? `${n(kpis.avg_resolution_hours).toFixed(1)} h` : "—";
 
   // ----- Derived values for the operational-analytics section -----
@@ -204,16 +208,15 @@ export default async function DashboardPage({
           </p>
         </div>
 
-        {/* KPI metrics — two rows of 5 on desktop. Fixed 5-column track so each
-            row stays a clean row (no orphan cards), and explicit breakpoints
-            collapse to 3 / 2 columns on tablet / mobile. */}
+        {/* KPI metrics — single row of 5 on desktop. Each card shows its share
+            of the total ("out of N · X%"). Explicit breakpoints collapse to
+            3 / 2 columns on tablet / mobile. */}
         <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-5">
-          <KpiCard label="Open" value={n(kpis?.open)} accent="amber" icon={Inbox} hero href={queueHref({ status: "open" })} />
-          <KpiCard label="Unassigned" value={n(kpis?.unassigned)} accent="red" icon={UserX} hero href={queueHref({ owner: "unassigned" })} />
-          <KpiCard label="Escalated" value={n(kpis?.escalated)} accent="red" icon={AlertTriangle} hero href={queueHref({ escalated: "1" })} />
-          <KpiCard label="Total Tickets" value={n(kpis?.total)} accent="blue" icon={Ticket} hero href={queueHref({})} />
-          <KpiCard label="Closed" value={n(kpis?.closed)} accent="green" icon={Archive} hero href={queueHref({ status: "closed" })} />
-          <KpiCard label="On Hold" value={n(kpis?.on_hold)} accent="slate" icon={PauseCircle} hero href={queueHref({ status: "on_hold" })} />
+          <KpiCard label="Open" value={n(kpis?.open)} sub={share(kpis?.open)} accent="amber" icon={Inbox} hero href={queueHref({ status: "open" })} />
+          <KpiCard label="Unassigned" value={n(kpis?.unassigned)} sub={share(kpis?.unassigned)} accent="red" icon={UserX} hero href={queueHref({ owner: "unassigned" })} />
+          <KpiCard label="Escalated" value={n(kpis?.escalated)} sub={share(kpis?.escalated)} accent="red" icon={AlertTriangle} hero href={queueHref({ escalated: "1" })} />
+          <KpiCard label="Closed" value={n(kpis?.closed)} sub={share(kpis?.closed)} accent="green" icon={Archive} hero href={queueHref({ status: "closed" })} />
+          <KpiCard label="On Hold" value={n(kpis?.on_hold)} sub={share(kpis?.on_hold)} accent="slate" icon={PauseCircle} hero href={queueHref({ status: "on_hold" })} />
         </div>
 
         {/* Responsiveness / SLA KPI strip — same responsive column rules. */}

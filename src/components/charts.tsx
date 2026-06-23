@@ -313,7 +313,7 @@ export function StatusPie({ data, linkParam }: { data: { name: string; value: nu
                   flexShrink: 0,
                 }}
               />
-              <span style={{ textTransform: "capitalize" }}>{d.name}</span>
+              <span style={{ textTransform: "capitalize" }}>{d.name.replace(/_/g, " ")}</span>
               <span style={{ fontVariantNumeric: "tabular-nums", marginLeft: "2px", opacity: 0.85 }}>{d.value}</span>
             </span>
           );
@@ -615,7 +615,7 @@ export function DonutBreakdown({
                   flexShrink: 0,
                 }}
               />
-              <span style={{ textTransform: "capitalize" }}>{d.name}</span>
+              <span style={{ textTransform: "capitalize" }}>{d.name.replace(/_/g, " ")}</span>
               <span style={{ fontVariantNumeric: "tabular-nums", marginLeft: "2px", opacity: 0.85 }}>{d.value}</span>
             </span>
           );
