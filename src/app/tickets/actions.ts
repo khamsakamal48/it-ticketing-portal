@@ -152,12 +152,19 @@ export async function reassignTicket(
   );
 }
 
+// Accrues elapsed hold time into total_hold_seconds for the row, as part of a
+// status-leaving UPDATE. When the row is NOT on hold this adds 0, so it is
+// always safe to include. Does NOT touch on_hold_since — callers that also need
+// to assign on_hold_since must do so once, in a single SET clause, to avoid a
+// "multiple assignments to same column" error.
+const ACCRUE_HOLD_SECONDS =
+  `total_hold_seconds = total_hold_seconds + CASE WHEN on_hold_since IS NOT NULL ` +
+  `THEN EXTRACT(EPOCH FROM (NOW() - on_hold_since))::bigint ELSE 0 END`;
+
 // Closes any open hold span (adds elapsed hold time to total_hold_seconds and
 // clears on_hold_since) for the row, as part of a status-leaving UPDATE. When
 // the row is NOT on hold this adds 0, so it is always safe to include.
-const ACCRUE_HOLD =
-  `total_hold_seconds = total_hold_seconds + CASE WHEN on_hold_since IS NOT NULL ` +
-  `THEN EXTRACT(EPOCH FROM (NOW() - on_hold_since))::bigint ELSE 0 END, on_hold_since = NULL`;
+const ACCRUE_HOLD = `${ACCRUE_HOLD_SECONDS}, on_hold_since = NULL`;
 
 // Inserts an agent's customer-visible status note (echoed into the n8n
 // notification email). Skipped silently when the note is blank.
@@ -211,7 +218,7 @@ export async function changeStatus(
           await client.query(
             `UPDATE tickets SET status = $1::text, updated_at = NOW(),
                     closed_at = CASE WHEN $1::text = 'open' THEN NULL ELSE closed_at END,
-                    ${ACCRUE_HOLD},
+                    ${ACCRUE_HOLD_SECONDS},
                     on_hold_since = CASE WHEN $1::text = 'on_hold' THEN NOW() ELSE NULL END
                WHERE id = $2`,
             [newStatus, ticketId]
