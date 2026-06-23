@@ -41,7 +41,7 @@ export function ActiveFilters({ agents }: { agents: Agent[] }) {
   const label = (key: string, value: string): string | null => {
     switch (key) {
       case "q": return `Search: "${value}"`;
-      case "status": return cap(value);
+      case "status": return titleize(value);
       case "priority": return `Priority: ${cap(value)}`;
       case "owner": return value === "unassigned" ? "Unassigned" : `Agent: ${agentName(value)}`;
       case "intent": return `Intent: ${titleize(value)}`;
