@@ -1,6 +1,7 @@
 "use client";
 
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
+import { createPortal } from "react-dom";
 import { Calendar, ChevronLeft, ChevronRight, X } from "lucide-react";
 
 // Date + time sibling of <DatePicker>. Same popover look, plus a time row.
@@ -53,28 +54,58 @@ export function DateTimePicker({
     return { y: base.y, m: base.m };
   });
   const rootRef = useRef<HTMLDivElement>(null);
+  const popRef = useRef<HTMLDivElement>(null);
+  // Fixed-position coords for the portalled popover (escapes ancestor overflow).
+  const [coords, setCoords] = useState<{ top: number; left: number } | null>(null);
 
   // Re-center the calendar on the selected value whenever it changes externally.
   useEffect(() => {
     if (selected) setView({ y: selected.y, m: selected.m });
   }, [selected]);
 
-  // Close on outside click / Escape.
+  // Position the popover relative to the trigger, flipping above when low on space.
+  const place = useCallback(() => {
+    const el = rootRef.current;
+    if (!el) return;
+    const r = el.getBoundingClientRect();
+    const PW = 268;
+    const PH = popRef.current?.offsetHeight ?? 400; // measured once rendered
+    const gap = 6;
+    const vw = window.innerWidth;
+    const vh = window.innerHeight;
+    let left = Math.min(r.left, vw - PW - 8);
+    left = Math.max(8, left);
+    let top = r.bottom + gap;
+    if (top + PH > vh - 8 && r.top - gap - PH > 8) top = r.top - gap - PH;
+    setCoords({ top, left });
+  }, []);
+
+  useLayoutEffect(() => {
+    if (open) place();
+  }, [open, place]);
+
+  // Close on outside click / Escape; reposition on scroll/resize.
   useEffect(() => {
     if (!open) return;
     const onDown = (e: MouseEvent) => {
-      if (rootRef.current && !rootRef.current.contains(e.target as Node)) setOpen(false);
+      const t = e.target as Node;
+      if (rootRef.current?.contains(t) || popRef.current?.contains(t)) return;
+      setOpen(false);
     };
     const onKey = (e: KeyboardEvent) => {
       if (e.key === "Escape") setOpen(false);
     };
     document.addEventListener("mousedown", onDown);
     document.addEventListener("keydown", onKey);
+    window.addEventListener("scroll", place, true);
+    window.addEventListener("resize", place);
     return () => {
       document.removeEventListener("mousedown", onDown);
       document.removeEventListener("keydown", onKey);
+      window.removeEventListener("scroll", place, true);
+      window.removeEventListener("resize", place);
     };
-  }, [open]);
+  }, [open, place]);
 
   const firstWeekday = new Date(view.y, view.m, 1).getDay();
   const daysInMonth = new Date(view.y, view.m + 1, 0).getDate();
@@ -148,10 +179,12 @@ export function DateTimePicker({
         )}
       </button>
 
-      {open && (
+      {open && createPortal(
         <div
+          ref={popRef}
           role="dialog"
-          className="absolute left-0 top-[calc(100%+6px)] z-50 w-[268px] origin-top animate-rise-in rounded-xl border border-border bg-surface p-3 shadow-pop"
+          style={{ position: "fixed", top: coords?.top ?? -9999, left: coords?.left ?? -9999, visibility: coords ? "visible" : "hidden" }}
+          className="z-50 w-[268px] origin-top animate-rise-in rounded-xl border border-border bg-surface p-3 shadow-pop"
         >
           {/* Header: month/year + nav */}
           <div className="mb-2 flex items-center justify-between">
@@ -270,7 +303,8 @@ export function DateTimePicker({
               Done
             </button>
           </div>
-        </div>
+        </div>,
+        document.body
       )}
     </div>
   );
