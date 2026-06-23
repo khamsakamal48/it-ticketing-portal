@@ -34,7 +34,7 @@ export default async function SignInPage({
           IT
         </div>
         <h1 className="text-xl font-semibold tracking-tight text-fg">IT Ticketing Portal</h1>
-        <p className="mt-1 text-sm text-subtle">IITB ACR — IT Operations</p>
+        <p className="mt-1 text-sm text-subtle">IITB DRF — IT & Operations</p>
 
         {error && (
           <div className="mt-5 flex items-start gap-2 rounded-lg bg-critical/10 px-3 py-2.5 text-left text-sm text-critical ring-1 ring-inset ring-critical/15">
@@ -62,7 +62,7 @@ export default async function SignInPage({
             Sign in with Office 365
           </button>
         </form>
-        <p className="mt-4 text-xs text-subtle">Access restricted to registered IT agents.</p>
+        <p className="mt-4 text-xs text-subtle">Access restricted to registered agents in IT & Operations Team.</p>
       </div>
     </main>
   );
