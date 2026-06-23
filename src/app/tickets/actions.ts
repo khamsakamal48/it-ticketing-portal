@@ -205,11 +205,14 @@ export async function changeStatus(
         } else {
           // open / on_hold / irrelevant. Entering on_hold starts a hold span;
           // any other target closes an open one. Reopening clears closed_at.
+          // $1 is cast to ::text in every use so Postgres deduces one consistent
+          // parameter type (it's both assigned to a varchar column and compared
+          // against text literals).
           await client.query(
-            `UPDATE tickets SET status = $1, updated_at = NOW(),
-                    closed_at = CASE WHEN $1 = 'open' THEN NULL ELSE closed_at END,
+            `UPDATE tickets SET status = $1::text, updated_at = NOW(),
+                    closed_at = CASE WHEN $1::text = 'open' THEN NULL ELSE closed_at END,
                     ${ACCRUE_HOLD},
-                    on_hold_since = CASE WHEN $1 = 'on_hold' THEN NOW() ELSE NULL END
+                    on_hold_since = CASE WHEN $1::text = 'on_hold' THEN NOW() ELSE NULL END
                WHERE id = $2`,
             [newStatus, ticketId]
           );

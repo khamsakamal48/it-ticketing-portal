@@ -8,6 +8,7 @@ import {
   Download,
   LayoutGrid,
   Rows3,
+  Search,
   SlidersHorizontal,
   X,
 } from "lucide-react";
@@ -35,7 +36,8 @@ const FILTER_KEYS = [
 
 // Subset the slide-out panel actually edits. Apply must only touch these so it
 // never wipes chip-only filters (intent/requester/agebucket/minageh) set elsewhere.
-const PANEL_KEYS = ["q", "owner", "status", "priority", "from", "to", "sentiment", "escalated"] as const;
+// `q` lives in the toolbar search box now, not the panel.
+const PANEL_KEYS = ["owner", "status", "priority", "from", "to", "sentiment", "escalated"] as const;
 
 // Toolbar (sort / layout / export / pagination) + right slide-out filter panel.
 // All state lives in the URL; server components re-read it. The panel batches
@@ -60,6 +62,34 @@ export function TicketListControls({
 
   // Active (committed) filter count → shown on the Filters button.
   const activeCount = FILTER_KEYS.filter((k) => sp.get(k)).length;
+
+  // Toolbar search: local input, debounced into the `q` URL param.
+  const qParam = sp.get("q") ?? "";
+  const [q, setQ] = useState(qParam);
+
+  // Keep local box in sync when q changes elsewhere (chip removal, Clear all).
+  useEffect(() => {
+    setQ(qParam);
+  }, [qParam]);
+
+  const commitQ = useCallback(
+    (value: string) => {
+      const next = new URLSearchParams(sp.toString());
+      const v = value.trim();
+      if (v) next.set("q", v);
+      else next.delete("q");
+      next.delete("page");
+      router.push(`${pathname}?${next.toString()}`);
+    },
+    [router, pathname, sp]
+  );
+
+  // Debounce typing so each keystroke doesn't push a new route.
+  useEffect(() => {
+    if (q === qParam) return;
+    const t = setTimeout(() => commitQ(q), 350);
+    return () => clearTimeout(t);
+  }, [q, qParam, commitQ]);
 
   const setParam = useCallback(
     (key: string, value: string) => {
@@ -119,6 +149,23 @@ export function TicketListControls({
               </option>
             ))}
           </select>
+        </div>
+
+        {/* Search — lives in the toolbar's free space */}
+        <div className="relative min-w-[180px] flex-1 sm:max-w-sm">
+          <Search
+            size={15}
+            className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-subtle"
+          />
+          <input
+            type="search"
+            aria-label="Search tickets"
+            placeholder="Search subject or ticket #"
+            className="input h-9 w-full pl-9"
+            value={q}
+            onChange={(e) => setQ(e.target.value)}
+            onKeyDown={(e) => e.key === "Enter" && commitQ(q)}
+          />
         </div>
 
         <div className="ml-auto flex flex-wrap items-center gap-3">
@@ -251,7 +298,6 @@ function FilterPanel({
 }) {
   const initial = useMemo<Draft>(
     () => ({
-      q: sp.get("q") ?? "",
       owner: sp.get("owner") ?? "",
       status: sp.get("status") ?? "",
       priority: sp.get("priority") ?? "",
@@ -311,19 +357,6 @@ function FilterPanel({
         </div>
 
         <div className="flex-1 space-y-5 overflow-y-auto px-5 py-5">
-          <div>
-            <label className="label" htmlFor="fp-q">Search fields</label>
-            <input
-              id="fp-q"
-              type="text"
-              placeholder="Subject or ticket #"
-              className="input w-full"
-              value={draft.q}
-              onChange={(e) => set("q", e.target.value)}
-              onKeyDown={(e) => e.key === "Enter" && onApply(draft)}
-            />
-          </div>
-
           <div>
             <label className="label" htmlFor="fp-agent">Agent</label>
             <select

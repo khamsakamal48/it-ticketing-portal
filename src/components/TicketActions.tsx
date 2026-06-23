@@ -2,6 +2,7 @@
 
 import { useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
+import { DateTimePicker } from "@/components/DateTimePicker";
 import {
   reassignTicket,
   changeStatus,
@@ -163,13 +164,10 @@ export function TicketActions({
         {/* Turnaround (custom SLA due date) */}
         <div>
           <label className="label" htmlFor="ta-tat">Turnaround date</label>
-          <input
+          <DateTimePicker
             id="ta-tat"
-            type="datetime-local"
-            className="input w-full"
             value={tat}
-            disabled={pending}
-            onChange={(e) => setTat(e.target.value)}
+            onChange={setTat}
           />
           <button
             className="btn-primary mt-2 w-full"
