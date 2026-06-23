@@ -7,6 +7,14 @@ const STATUS: Record<string, { text: string; dot: string; bg: string }> = {
   pending: { text: "text-pending", dot: "bg-pending", bg: "bg-pending/10" },
   resolved: { text: "text-resolved", dot: "bg-resolved", bg: "bg-resolved/10" },
   closed: { text: "text-closed", dot: "bg-closed", bg: "bg-closed/10" },
+  on_hold: { text: "text-pending", dot: "bg-pending", bg: "bg-pending/10" },
+  irrelevant: { text: "text-subtle", dot: "bg-subtle", bg: "bg-subtle/10" },
+};
+
+// Human labels for multi-word status codes.
+const STATUS_LABEL: Record<string, string> = {
+  on_hold: "On Hold",
+  irrelevant: "Irrelevant",
 };
 
 const PRIORITY: Record<string, { text: string; dot: string; bg: string }> = {
@@ -23,7 +31,7 @@ export function StatusBadge({ status }: { status: string }) {
   return (
     <span className={`badge ring-1 ring-inset ring-current/15 ${s.bg} ${s.text} capitalize`}>
       <span className={`dot ${s.dot}`} />
-      {status}
+      {STATUS_LABEL[status] ?? status}
     </span>
   );
 }

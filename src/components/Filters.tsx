@@ -66,6 +66,8 @@ export function Filters({
               <option value="">All</option>
               <option value="open">Open</option>
               <option value="closed">Closed</option>
+              <option value="on_hold">On Hold</option>
+              <option value="irrelevant">Irrelevant</option>
             </select>
           </div>
           <div>

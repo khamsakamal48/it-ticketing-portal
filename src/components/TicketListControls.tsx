@@ -353,6 +353,8 @@ function FilterPanel({
               <option value="">Any status</option>
               <option value="open">Open</option>
               <option value="closed">Closed</option>
+              <option value="on_hold">On Hold</option>
+              <option value="irrelevant">Irrelevant</option>
             </select>
           </div>
 

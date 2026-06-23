@@ -6,7 +6,11 @@ export type AuditAction =
   | "priority_change"
   | "note_added"
   | "close"
-  | "reopen";
+  | "reopen"
+  | "hold"
+  | "unhold"
+  | "mark_irrelevant"
+  | "turnaround_set";
 
 export interface AuditEntry {
   ticketId: number;

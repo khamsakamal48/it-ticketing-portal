@@ -9,9 +9,10 @@
 //   - "Resolve Creation Owner"   (owner must be an active user)
 //   - schema CHECK constraints   (status / priority enums)
 
-// The n8n workflows only ever write 'open' or 'closed'. 'pending'/'resolved' are
-// not part of the live lifecycle and have been removed from the schema enum.
-export const TICKET_STATUSES = ["open", "closed"] as const;
+// Live lifecycle states. 'pending'/'resolved' were removed earlier.
+//   on_hold    — blocked on an external team/process; all SLA timers pause.
+//   irrelevant — CC noise that should never have been a ticket; hidden + uncounted.
+export const TICKET_STATUSES = ["open", "closed", "on_hold", "irrelevant"] as const;
 export const TICKET_PRIORITIES = ["low", "medium", "high", "critical"] as const;
 
 export type TicketStatus = (typeof TICKET_STATUSES)[number];
@@ -27,9 +28,13 @@ export function isValidPriority(p: string): p is TicketPriority {
 // Allowed manual status transitions in the portal. Matches n8n behaviour:
 // agents may close an open ticket, and reopen a closed one (a customer reply
 // also reopens closed -> open, handled by n8n, not here).
+//   on_hold can be entered from open and closed, and exited back to open/closed.
+//   irrelevant can be set from any state and is only reversible back to open.
 const TRANSITIONS: Record<TicketStatus, TicketStatus[]> = {
-  open: ["closed"],
-  closed: ["open"], // reopen only
+  open: ["closed", "on_hold", "irrelevant"],
+  closed: ["open", "irrelevant"], // reopen, or flag as noise
+  on_hold: ["open", "closed", "irrelevant"],
+  irrelevant: ["open"], // reversible only back to open
 };
 
 export function canTransition(from: TicketStatus, to: TicketStatus): boolean {

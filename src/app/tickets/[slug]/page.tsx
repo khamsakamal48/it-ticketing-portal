@@ -143,6 +143,7 @@ export default async function TicketDetail({ params }: { params: Promise<{ slug:
               ownerId={ticket.owner_id}
               status={ticket.status}
               priority={ticket.priority}
+              turnaroundAt={ticket.turnaround_at}
               agents={agents}
             />
 

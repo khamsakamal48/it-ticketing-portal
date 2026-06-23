@@ -7,6 +7,7 @@ import {
   changeStatus,
   changePriority,
   addInternalNote,
+  setTurnaround,
   type ActionResult,
 } from "@/app/tickets/actions";
 
@@ -15,12 +16,23 @@ interface Agent {
   name: string;
 }
 
+// Converts a stored UTC ISO timestamp to the value a datetime-local input wants
+// (local "YYYY-MM-DDTHH:mm"), or "" when unset.
+function toLocalInput(iso: string | null): string {
+  if (!iso) return "";
+  const d = new Date(iso);
+  if (Number.isNaN(d.getTime())) return "";
+  const pad = (n: number) => String(n).padStart(2, "0");
+  return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`;
+}
+
 export function TicketActions({
   ticketId,
   updatedAt,
   ownerId,
   status,
   priority,
+  turnaroundAt,
   agents,
 }: {
   ticketId: number;
@@ -28,20 +40,24 @@ export function TicketActions({
   ownerId: number | null;
   status: string;
   priority: string;
+  turnaroundAt: string | null;
   agents: Agent[];
 }) {
   const router = useRouter();
   const [pending, startTransition] = useTransition();
   const [msg, setMsg] = useState<{ tone: "ok" | "warn" | "err"; text: string } | null>(null);
   const [note, setNote] = useState("");
+  // Shared note echoed into the On Hold / turnaround notification email.
+  const [statusNote, setStatusNote] = useState("");
+  const [tat, setTat] = useState(toLocalInput(turnaroundAt));
 
-  const run = (fn: () => Promise<ActionResult>) => {
+  const run = (fn: () => Promise<ActionResult>, clear?: () => void) => {
     setMsg(null);
     startTransition(async () => {
       const res = await fn();
       if (res.ok) {
         setMsg(res.warning ? { tone: "warn", text: res.warning } : { tone: "ok", text: "Saved." });
-        setNote("");
+        clear?.();
         router.refresh();
       } else {
         setMsg({ tone: "err", text: res.error ?? "Failed." });
@@ -99,14 +115,32 @@ export function TicketActions({
           <select
             id="ta-status"
             className="input w-full"
-            defaultValue={status}
+            value={status}
             disabled={pending}
-            onChange={(e) => run(() => changeStatus(ticketId, e.target.value, updatedAt))}
+            onChange={(e) => run(() => changeStatus(ticketId, e.target.value, updatedAt, statusNote), () => setStatusNote(""))}
           >
             <option value="open">Open</option>
             <option value="closed">Closed</option>
+            <option value="on_hold">On Hold</option>
+            <option value="irrelevant">Irrelevant</option>
           </select>
-          <p className="mt-1 text-xs text-subtle">Closing requires an assigned owner.</p>
+          <p className="mt-1 text-xs text-subtle">
+            Closing requires an owner. On Hold pauses all SLA timers. Irrelevant hides the ticket from dashboards.
+          </p>
+        </div>
+
+        {/* Status note (sent to requester + manager on On Hold / turnaround) */}
+        <div>
+          <label className="label" htmlFor="ta-status-note">Note for requester</label>
+          <textarea
+            id="ta-status-note"
+            className="input w-full"
+            rows={2}
+            value={statusNote}
+            disabled={pending}
+            onChange={(e) => setStatusNote(e.target.value)}
+            placeholder="Included in the email when you set On Hold or a turnaround date…"
+          />
         </div>
 
         {/* Priority */}
@@ -126,6 +160,34 @@ export function TicketActions({
           </select>
         </div>
 
+        {/* Turnaround (custom SLA due date) */}
+        <div>
+          <label className="label" htmlFor="ta-tat">Turnaround date</label>
+          <input
+            id="ta-tat"
+            type="datetime-local"
+            className="input w-full"
+            value={tat}
+            disabled={pending}
+            onChange={(e) => setTat(e.target.value)}
+          />
+          <button
+            className="btn-primary mt-2 w-full"
+            disabled={pending || !tat}
+            onClick={() =>
+              run(
+                () => setTurnaround(ticketId, new Date(tat).toISOString(), statusNote, updatedAt),
+                () => setStatusNote("")
+              )
+            }
+          >
+            {pending ? "Saving…" : "Update turnaround"}
+          </button>
+          <p className="mt-1 text-xs text-subtle">
+            Replaces the default 24h SLA. Notifies requester, manager, and agent.
+          </p>
+        </div>
+
         {/* Internal note */}
         <div>
           <label className="label" htmlFor="ta-note">Add internal note</label>
@@ -141,7 +203,7 @@ export function TicketActions({
           <button
             className="btn-primary mt-2 w-full"
             disabled={pending || !note.trim()}
-            onClick={() => run(() => addInternalNote(ticketId, note, updatedAt))}
+            onClick={() => run(() => addInternalNote(ticketId, note, updatedAt), () => setNote(""))}
           >
             {pending ? "Saving…" : "Add note"}
           </button>

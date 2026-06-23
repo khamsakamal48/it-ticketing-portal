@@ -38,7 +38,10 @@ function buildWhere(f: TicketFilters): { clause: string; params: unknown[] } {
   };
   if (f.from) add("t.created_at >= $?", f.from);
   if (f.to) add("t.created_at <= $?", f.to);
+  // 'irrelevant' tickets (CC noise) are hidden from every screen + dashboard by
+  // default; surfaced only when explicitly filtered for. Never counted in KPIs.
   if (f.status) add("t.status = $?", f.status);
+  else conds.push("t.status <> 'irrelevant'");
   if (f.priority) add("t.priority = $?", f.priority);
   if (f.unassigned) conds.push("t.ticket_owner_id IS NULL");
   else if (f.ownerId) add("t.ticket_owner_id = $?", f.ownerId);
@@ -75,17 +78,20 @@ export async function getKpis(f: TicketFilters) {
     total: string;
     open: string;
     closed: string;
+    on_hold: string;
     unassigned: string;
     escalated: string;
     avg_resolution_hours: string | null;
   }>(
+    // Resolution time excludes any time the ticket spent on hold (total_hold_seconds).
     `SELECT
         COUNT(*)                                              AS total,
         COUNT(*) FILTER (WHERE status = 'open')               AS open,
         COUNT(*) FILTER (WHERE status = 'closed')             AS closed,
+        COUNT(*) FILTER (WHERE status = 'on_hold')            AS on_hold,
         COUNT(*) FILTER (WHERE ticket_owner_id IS NULL)       AS unassigned,
         COUNT(*) FILTER (WHERE escalation_level > 0)          AS escalated,
-        AVG(EXTRACT(EPOCH FROM (closed_at - created_at))/3600)
+        AVG(EXTRACT(EPOCH FROM (closed_at - created_at))/3600 - total_hold_seconds/3600.0)
           FILTER (WHERE status = 'closed' AND closed_at IS NOT NULL) AS avg_resolution_hours
      FROM tickets t ${clause}`,
     params
@@ -222,16 +228,19 @@ export async function getSlaCompliance(f: TicketFilters, slaHours: number) {
   params.push(slaHours);
   const slaP = `$${params.length}`;
   const row = await query<{ resolved_within: string; total_closed: string; breaching_now: string }>(
+    // Both compliance and live-breach use elapsed time MINUS time spent on hold
+    // (total_hold_seconds). on_hold / irrelevant tickets never count as breaching
+    // (status = 'open' guard excludes them).
     `SELECT
         COUNT(*) FILTER (
           WHERE status = 'closed'
             AND closed_at IS NOT NULL
-            AND EXTRACT(EPOCH FROM (closed_at - created_at)) / 3600 <= ${slaP}
+            AND EXTRACT(EPOCH FROM (closed_at - created_at)) / 3600 - total_hold_seconds/3600.0 <= ${slaP}
         )                                                    AS resolved_within,
         COUNT(*) FILTER (WHERE status = 'closed')            AS total_closed,
         COUNT(*) FILTER (
           WHERE status = 'open'
-            AND EXTRACT(EPOCH FROM (now() - created_at)) / 3600 > ${slaP}
+            AND EXTRACT(EPOCH FROM (now() - created_at)) / 3600 - total_hold_seconds/3600.0 > ${slaP}
         )                                                    AS breaching_now
        FROM tickets t ${clause}`,
     params
@@ -353,12 +362,19 @@ export async function listTickets(
 }
 
 export async function getTicket(id: number) {
-  return query<TicketRow & { ai_summary: string | null; conversation_id: string | null }>(
+  return query<
+    TicketRow & {
+      ai_summary: string | null;
+      conversation_id: string | null;
+      turnaround_at: string | null;
+      on_hold_since: string | null;
+    }
+  >(
     `SELECT t.id, t.subject, t.status, t.priority,
             u.name AS owner_name, t.ticket_owner_id AS owner_id,
             c.email AS contact_email,
             t.created_at, t.updated_at, t.escalation_level,
-            t.ai_summary, t.conversation_id
+            t.ai_summary, t.conversation_id, t.turnaround_at, t.on_hold_since
        FROM tickets t
        LEFT JOIN users u ON u.id = t.ticket_owner_id
        LEFT JOIN contacts c ON c.id = t.contact_id

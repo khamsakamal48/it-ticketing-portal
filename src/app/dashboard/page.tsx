@@ -26,6 +26,7 @@ import {
   Gauge,
   ShieldCheck,
   Flame,
+  PauseCircle,
   TrendingUp,
 } from "lucide-react";
 import {
@@ -212,6 +213,7 @@ export default async function DashboardPage({
           <KpiCard label="Escalated" value={n(kpis?.escalated)} accent="red" icon={AlertTriangle} hero href={queueHref({ escalated: "1" })} />
           <KpiCard label="Total Tickets" value={n(kpis?.total)} accent="blue" icon={Ticket} hero href={queueHref({})} />
           <KpiCard label="Closed" value={n(kpis?.closed)} accent="green" icon={Archive} hero href={queueHref({ status: "closed" })} />
+          <KpiCard label="On Hold" value={n(kpis?.on_hold)} accent="slate" icon={PauseCircle} hero href={queueHref({ status: "on_hold" })} />
         </div>
 
         {/* Responsiveness / SLA KPI strip — same responsive column rules. */}

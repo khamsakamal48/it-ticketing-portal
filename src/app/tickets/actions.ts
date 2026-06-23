@@ -6,7 +6,7 @@ import { auth } from "@/lib/auth";
 import { withTransaction } from "@/lib/db";
 import { writeAudit, type AuditAction } from "@/lib/audit";
 import { encodeTicketId } from "@/lib/ticket-id";
-import { notifyTicketClosed, notifyAgentAssigned } from "@/lib/n8n";
+import { notifyTicketClosed, notifyAgentAssigned, notifyOnHold, notifyTurnaround } from "@/lib/n8n";
 import {
   assertTransition,
   assertOwnerRequiredForClose,
@@ -152,43 +152,81 @@ export async function reassignTicket(
   );
 }
 
+// Closes any open hold span (adds elapsed hold time to total_hold_seconds and
+// clears on_hold_since) for the row, as part of a status-leaving UPDATE. When
+// the row is NOT on hold this adds 0, so it is always safe to include.
+const ACCRUE_HOLD =
+  `total_hold_seconds = total_hold_seconds + CASE WHEN on_hold_since IS NOT NULL ` +
+  `THEN EXTRACT(EPOCH FROM (NOW() - on_hold_since))::bigint ELSE 0 END, on_hold_since = NULL`;
+
+// Inserts an agent's customer-visible status note (echoed into the n8n
+// notification email). Skipped silently when the note is blank.
+async function insertStatusNote(client: PoolClient, ticketId: number, note?: string) {
+  const text = (note ?? "").trim();
+  if (!text) return;
+  await client.query(
+    `INSERT INTO messages (ticket_id, body, sender_type, note_type, created_at)
+     VALUES ($1, $2, 'agent', 'status_note', NOW())`,
+    [ticketId, text]
+  );
+}
+
 // ---------------- Status change ----------------
+// `note` is optional and only meaningful when moving to on_hold — it is stored
+// as a status note and echoed into the requester/manager email.
 export async function changeStatus(
   ticketId: number,
   newStatus: string,
-  expectedUpdatedAt: string
+  expectedUpdatedAt: string,
+  note?: string
 ): Promise<ActionResult> {
   return wrap(
     (async () => {
       const actor = await requireActor();
       if (!isValidStatus(newStatus)) throw new RuleError("Invalid status.");
-      const closed = await withTransaction(async (client) => {
+      const effect = await withTransaction(async (client) => {
         const t = await lockTicket(client, ticketId, expectedUpdatedAt);
         assertTransition(t.status, newStatus);
         // Closing requires an active owner (n8n closure rule).
         assertOwnerRequiredForClose(newStatus, t.ticket_owner_id);
         if (t.status === newStatus) return null;
-        // Closing is an agent action: stamp closed_at (resolution-time anchor) and
-        // first_agent_reply_at (if this is the first agent touch). Reopening clears
-        // closed_at so a later re-close re-stamps it.
         if (newStatus === "closed") {
+          // Closing is an agent action: stamp closed_at (resolution-time anchor)
+          // and first_agent_reply_at (first agent touch). Also close any open hold
+          // span so on-hold time is excluded from the resolution calc.
           await client.query(
-            `UPDATE tickets SET status = $1, updated_at = NOW(), closed_at = NOW(),
+            `UPDATE tickets SET status = 'closed', updated_at = NOW(), closed_at = NOW(),
                     last_agent_reply_at = NOW(),
-                    first_agent_reply_at = COALESCE(first_agent_reply_at, NOW())
-               WHERE id = $2`,
-            [newStatus, ticketId]
+                    first_agent_reply_at = COALESCE(first_agent_reply_at, NOW()),
+                    ${ACCRUE_HOLD}
+               WHERE id = $1`,
+            [ticketId]
           );
         } else {
+          // open / on_hold / irrelevant. Entering on_hold starts a hold span;
+          // any other target closes an open one. Reopening clears closed_at.
           await client.query(
             `UPDATE tickets SET status = $1, updated_at = NOW(),
-                    closed_at = CASE WHEN $1 = 'open' THEN NULL ELSE closed_at END
+                    closed_at = CASE WHEN $1 = 'open' THEN NULL ELSE closed_at END,
+                    ${ACCRUE_HOLD},
+                    on_hold_since = CASE WHEN $1 = 'on_hold' THEN NOW() ELSE NULL END
                WHERE id = $2`,
             [newStatus, ticketId]
           );
         }
+        if (newStatus === "on_hold") await insertStatusNote(client, ticketId, note);
         const action: AuditAction =
-          newStatus === "closed" ? "close" : t.status === "closed" ? "reopen" : "status_change";
+          newStatus === "closed"
+            ? "close"
+            : newStatus === "on_hold"
+            ? "hold"
+            : newStatus === "irrelevant"
+            ? "mark_irrelevant"
+            : t.status === "closed"
+            ? "reopen"
+            : t.status === "on_hold"
+            ? "unhold"
+            : "status_change";
         await writeAudit(client, {
           ticketId,
           actorUserId: actor.id,
@@ -198,23 +236,92 @@ export async function changeStatus(
           oldValue: t.status,
           newValue: newStatus,
         });
-        // Carry contact info out of the txn so we can notify n8n AFTER commit.
-        return action === "close"
-          ? { contactEmail: t.contact_email, subject: t.subject }
-          : null;
+        // Carry context out of the txn so we can notify n8n AFTER commit.
+        if (action === "close") return { kind: "close" as const, contactEmail: t.contact_email, subject: t.subject };
+        if (action === "hold") return { kind: "hold" as const, contactEmail: t.contact_email, subject: t.subject };
+        return null;
       });
 
-      // Customer closure email is owned by n8n; trigger it only once the close
-      // has durably committed. Best-effort — never undo a committed close.
-      if (closed) {
-        const result = await notifyTicketClosed({ ticketId, ...closed });
-        if (result.configured && !result.sent) {
+      // Side-effect emails are owned by n8n; fire only after a durable commit.
+      // Best-effort — never undo a committed status change.
+      if (effect?.kind === "close") {
+        const result = await notifyTicketClosed({
+          ticketId,
+          contactEmail: effect.contactEmail,
+          subject: effect.subject,
+        });
+        if (result.configured && !result.sent)
           return {
             warning:
               "Ticket closed, but the closure email could not be sent. Notify the customer manually.",
           };
-        }
+      } else if (effect?.kind === "hold") {
+        const result = await notifyOnHold({
+          event: "on_hold",
+          ticketId,
+          contactEmail: effect.contactEmail,
+          subject: effect.subject,
+          note: note?.trim() || null,
+          actorEmail: actor.email,
+        });
+        if (result.configured && !result.sent)
+          return {
+            warning:
+              "Ticket put on hold, but the notification email could not be sent. Notify the requester/manager manually.",
+          };
       }
+    })(),
+    ticketId
+  );
+}
+
+// ---------------- Custom turnaround (TAT) ----------------
+// Sets a per-ticket due date that replaces the default 24h resolution SLA. The
+// optional note is echoed into the requester/manager/agent notification email.
+export async function setTurnaround(
+  ticketId: number,
+  dueDateISO: string,
+  note: string,
+  expectedUpdatedAt: string
+): Promise<ActionResult> {
+  return wrap(
+    (async () => {
+      const actor = await requireActor();
+      const due = new Date(dueDateISO);
+      if (Number.isNaN(due.getTime())) throw new RuleError("Invalid turnaround date.");
+      if (due.getTime() <= Date.now()) throw new RuleError("Turnaround date must be in the future.");
+      const ctx = await withTransaction(async (client) => {
+        const t = await lockTicket(client, ticketId, expectedUpdatedAt);
+        await client.query(
+          `UPDATE tickets SET turnaround_at = $1, updated_at = NOW() WHERE id = $2`,
+          [due.toISOString(), ticketId]
+        );
+        await insertStatusNote(client, ticketId, note);
+        await writeAudit(client, {
+          ticketId,
+          actorUserId: actor.id,
+          actorEmail: actor.email,
+          action: "turnaround_set",
+          field: "turnaround_at",
+          newValue: due.toISOString(),
+        });
+        return { contactEmail: t.contact_email, subject: t.subject };
+      });
+
+      const result = await notifyTurnaround({
+        event: "tat_set",
+        ticketId,
+        contactEmail: ctx.contactEmail,
+        subject: ctx.subject,
+        dueDate: due.toISOString(),
+        note: note?.trim() || null,
+        actorEmail: actor.email,
+      });
+      if (result.configured && !result.sent)
+        return {
+          warning:
+            "Turnaround updated, but the notification email could not be sent. Notify the parties manually.",
+        };
     })(),
     ticketId
   );
