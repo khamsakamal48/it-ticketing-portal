@@ -61,7 +61,7 @@ export function KpiCard({
   const card = (
     <div
       className={cn(
-        "relative h-full overflow-hidden",
+        "relative flex h-full min-h-[108px] flex-col overflow-hidden",
         hero ? "p-5" : "p-4",
         href && "transition-transform duration-150 hover:-translate-y-0.5"
       )}
