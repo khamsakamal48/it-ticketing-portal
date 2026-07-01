@@ -10,10 +10,12 @@ import {
   getTicketTags,
   getTicketAudit,
   getActiveAgents,
+  getContacts,
 } from "@/lib/queries";
 import { fmtIST } from "@/lib/datetime";
 import { decodeTicketId } from "@/lib/ticket-id";
 import { isHtmlBody, sanitizeEmailHtml } from "@/lib/sanitize-email";
+import { parseForwardedOriginal } from "@/lib/forwarded-email";
 
 export const dynamic = "force-dynamic";
 
@@ -25,12 +27,18 @@ export default async function TicketDetail({ params }: { params: Promise<{ slug:
   const ticket = await getTicket(ticketId);
   if (!ticket) notFound();
 
-  const [messages, tags, audit, agents] = await Promise.all([
+  const [messages, tags, audit, agents, contacts] = await Promise.all([
     getTicketMessages(ticketId),
     getTicketTags(ticketId),
     getTicketAudit(ticketId),
     getActiveAgents(),
+    getContacts(),
   ]);
+
+  // Best-effort: detect the real requester + original send-time from the quoted
+  // block in the first customer message, to pre-fill the correction form.
+  const firstCustomerMsg = messages.find((m) => m.sender_type === "customer") ?? messages[0];
+  const detectedOriginal = parseForwardedOriginal(firstCustomerMsg?.body);
 
   return (
     <AppShell active="/tickets">
@@ -145,6 +153,10 @@ export default async function TicketDetail({ params }: { params: Promise<{ slug:
               priority={ticket.priority}
               turnaroundAt={ticket.turnaround_at}
               agents={agents}
+              contacts={contacts}
+              contactId={ticket.contact_id}
+              createdAt={new Date(ticket.created_at).toISOString()}
+              detectedOriginal={detectedOriginal}
             />
 
             <div className="card p-5 text-sm">

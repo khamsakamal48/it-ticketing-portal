@@ -178,6 +178,115 @@ async function insertStatusNote(client: PoolClient, ticketId: number, note?: str
   );
 }
 
+// ---------------- Correct requester + original date ----------------
+// Fixes tickets created from an agent-forwarded email: repoints the requester to
+// the real customer (an existing contact or a brand-new one added inline) and
+// optionally backdates the ticket to when the customer originally wrote in.
+// Silent internal correction — no customer notification. All changes audit-logged.
+const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+
+export async function correctRequester(
+  ticketId: number,
+  opts: {
+    contactId?: number;
+    newContact?: { email: string; name?: string };
+    originalDateISO?: string;
+  },
+  expectedUpdatedAt: string
+): Promise<ActionResult> {
+  return wrap(
+    (async () => {
+      const actor = await requireActor();
+
+      // Validate the date up front (outside the txn).
+      let originalISO: string | null = null;
+      if (opts.originalDateISO) {
+        const d = new Date(opts.originalDateISO);
+        if (Number.isNaN(d.getTime())) throw new RuleError("Invalid original date.");
+        if (d.getTime() > Date.now())
+          throw new RuleError("Original date cannot be in the future.");
+        originalISO = d.toISOString();
+      }
+
+      if (!opts.contactId && !opts.newContact && !originalISO)
+        throw new RuleError("Nothing to change.");
+
+      await withTransaction(async (client) => {
+        await lockTicket(client, ticketId, expectedUpdatedAt);
+        const before = await client
+          .query<{ contact_id: number | null; created_at: Date }>(
+            `SELECT contact_id, created_at FROM tickets WHERE id = $1`,
+            [ticketId]
+          )
+          .then((r) => r.rows[0]);
+
+        // Resolve the target contact id (only if the requester is changing).
+        let newContactId: number | null = null;
+        if (opts.newContact) {
+          const email = opts.newContact.email.trim().toLowerCase();
+          const name = (opts.newContact.name ?? "").trim();
+          if (!EMAIL_RE.test(email)) throw new RuleError("Enter a valid email for the new contact.");
+          const { rows } = await client.query<{ id: number }>(
+            `INSERT INTO contacts (email, name)
+               VALUES ($1, $2)
+             ON CONFLICT (email) DO UPDATE
+               SET name = COALESCE(NULLIF(EXCLUDED.name, ''), contacts.name)
+             RETURNING id`,
+            [email, name || null]
+          );
+          newContactId = rows[0].id;
+        } else if (opts.contactId) {
+          const { rows } = await client.query(`SELECT 1 FROM contacts WHERE id = $1`, [opts.contactId]);
+          if (rows.length === 0) throw new RuleError("Selected contact no longer exists.");
+          newContactId = opts.contactId;
+        }
+
+        // Repoint requester (skip if unchanged).
+        const oldContactId = before?.contact_id ?? null;
+        if (newContactId !== null && newContactId !== oldContactId) {
+          await client.query(`UPDATE tickets SET contact_id = $1, updated_at = NOW() WHERE id = $2`, [
+            newContactId,
+            ticketId,
+          ]);
+          // Re-attribute the customer-side messages to the corrected requester.
+          await client.query(
+            `UPDATE messages SET contact_id = $1 WHERE ticket_id = $2 AND sender_type = 'customer'`,
+            [newContactId, ticketId]
+          );
+          await writeAudit(client, {
+            ticketId,
+            actorUserId: actor.id,
+            actorEmail: actor.email,
+            action: "requester_change",
+            field: "contact_id",
+            oldValue: oldContactId !== null ? String(oldContactId) : null,
+            newValue: String(newContactId),
+          });
+        }
+
+        // Backdate the ticket to the customer's original send-time.
+        if (originalISO) {
+          const oldCreated = before?.created_at ? new Date(before.created_at) : null;
+          await client.query(
+            `UPDATE tickets SET created_at = $1, last_customer_reply_at = $1, updated_at = NOW() WHERE id = $2`,
+            [originalISO, ticketId]
+          );
+          await writeAudit(client, {
+            ticketId,
+            actorUserId: actor.id,
+            actorEmail: actor.email,
+            action: "original_date_change",
+            field: "created_at",
+            oldValue: oldCreated && !Number.isNaN(oldCreated.getTime()) ? oldCreated.toISOString() : null,
+            newValue: originalISO,
+          });
+        }
+      });
+    })(),
+    ticketId
+  );
+}
+
 // ---------------- Status change ----------------
 // `note` is optional and only meaningful when moving to on_hold — it is stored
 // as a status note and echoed into the requester/manager email.

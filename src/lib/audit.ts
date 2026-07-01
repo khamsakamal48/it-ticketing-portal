@@ -10,7 +10,9 @@ export type AuditAction =
   | "hold"
   | "unhold"
   | "mark_irrelevant"
-  | "turnaround_set";
+  | "turnaround_set"
+  | "requester_change"
+  | "original_date_change";
 
 export interface AuditEntry {
   ticketId: number;

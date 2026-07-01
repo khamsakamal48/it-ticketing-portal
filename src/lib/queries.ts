@@ -364,6 +364,7 @@ export async function listTickets(
 export async function getTicket(id: number) {
   return query<
     TicketRow & {
+      contact_id: number | null;
       ai_summary: string | null;
       conversation_id: string | null;
       turnaround_at: string | null;
@@ -372,7 +373,7 @@ export async function getTicket(id: number) {
   >(
     `SELECT t.id, t.subject, t.status, t.priority,
             u.name AS owner_name, t.ticket_owner_id AS owner_id,
-            c.email AS contact_email,
+            c.email AS contact_email, t.contact_id,
             t.created_at, t.updated_at, t.escalation_level,
             t.ai_summary, t.conversation_id, t.turnaround_at, t.on_hold_since
        FROM tickets t
@@ -424,6 +425,16 @@ export async function getTicketAudit(ticketId: number) {
 export async function getActiveAgents() {
   return query<{ id: number; name: string; email: string; role: string }>(
     `SELECT id, name, email, role FROM users WHERE is_active = true ORDER BY name`
+  );
+}
+
+// Contacts for the requester picker on the ticket detail page. Ordered by the
+// best display label. Populated broadly by the n8n Harvest Recipients step
+// (every To/CC address on inbound mail), so first-time requesters usually
+// already appear here.
+export async function getContacts() {
+  return query<{ id: number; email: string; name: string | null }>(
+    `SELECT id, email, name FROM contacts ORDER BY COALESCE(NULLIF(name, ''), email)`
   );
 }
 

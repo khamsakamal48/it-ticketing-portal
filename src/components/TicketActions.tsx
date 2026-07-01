@@ -9,12 +9,20 @@ import {
   changePriority,
   addInternalNote,
   setTurnaround,
+  correctRequester,
   type ActionResult,
 } from "@/app/tickets/actions";
+import type { ParsedOriginal } from "@/lib/forwarded-email";
 
 interface Agent {
   id: number;
   name: string;
+}
+
+interface Contact {
+  id: number;
+  email: string;
+  name: string | null;
 }
 
 // Converts a stored UTC ISO timestamp to the value a datetime-local input wants
@@ -35,6 +43,10 @@ export function TicketActions({
   priority,
   turnaroundAt,
   agents,
+  contacts,
+  contactId,
+  createdAt,
+  detectedOriginal,
 }: {
   ticketId: number;
   updatedAt: string;
@@ -43,6 +55,10 @@ export function TicketActions({
   priority: string;
   turnaroundAt: string | null;
   agents: Agent[];
+  contacts: Contact[];
+  contactId: number | null;
+  createdAt: string;
+  detectedOriginal: ParsedOriginal | null;
 }) {
   const router = useRouter();
   const [pending, startTransition] = useTransition();
@@ -51,6 +67,26 @@ export function TicketActions({
   // Shared note echoed into the On Hold / turnaround notification email.
   const [statusNote, setStatusNote] = useState("");
   const [tat, setTat] = useState(toLocalInput(turnaroundAt));
+
+  // --- Correct requester + original date ---
+  // If auto-detection found a requester not already in contacts, default to the
+  // "add new" mode pre-filled with it; otherwise pick the current contact.
+  const detectedEmail = detectedOriginal?.email ?? "";
+  const detectedKnown = detectedEmail
+    ? contacts.find((c) => c.email.toLowerCase() === detectedEmail.toLowerCase())
+    : undefined;
+  const [reqMode, setReqMode] = useState<"existing" | "new">(
+    detectedEmail && !detectedKnown ? "new" : "existing"
+  );
+  const [reqContactId, setReqContactId] = useState<number | "">(
+    detectedKnown?.id ?? contactId ?? ""
+  );
+  const [newEmail, setNewEmail] = useState(detectedKnown ? "" : detectedEmail);
+  const [newName, setNewName] = useState(detectedKnown ? "" : detectedOriginal?.name ?? "");
+  // Pre-fill the original date from the detected send-time, else current created_at.
+  const [origDate, setOrigDate] = useState(
+    toLocalInput(detectedOriginal?.sentAt ?? createdAt)
+  );
 
   const run = (fn: () => Promise<ActionResult>, clear?: () => void) => {
     setMsg(null);
@@ -64,6 +100,32 @@ export function TicketActions({
         setMsg({ tone: "err", text: res.error ?? "Failed." });
       }
     });
+  };
+
+  const submitRequester = () => {
+    const opts: {
+      contactId?: number;
+      newContact?: { email: string; name?: string };
+      originalDateISO?: string;
+    } = {};
+    if (reqMode === "new") {
+      if (!newEmail.trim()) {
+        setMsg({ tone: "err", text: "Enter an email for the new contact." });
+        return;
+      }
+      opts.newContact = { email: newEmail.trim(), name: newName.trim() || undefined };
+    } else if (reqContactId !== "" && reqContactId !== contactId) {
+      opts.contactId = Number(reqContactId);
+    }
+    if (origDate) {
+      const iso = new Date(origDate).toISOString();
+      if (iso !== new Date(createdAt).toISOString()) opts.originalDateISO = iso;
+    }
+    if (!opts.newContact && opts.contactId === undefined && !opts.originalDateISO) {
+      setMsg({ tone: "err", text: "No changes to save." });
+      return;
+    }
+    run(() => correctRequester(ticketId, opts, updatedAt));
   };
 
   const toneClass: Record<"ok" | "warn" | "err", string> = {
@@ -108,6 +170,78 @@ export function TicketActions({
               </option>
             ))}
           </select>
+        </div>
+
+        {/* Correct requester + original date */}
+        <div className="rounded-lg border border-border bg-surface-2 p-3">
+          <label className="label">Requester</label>
+          <div className="mb-2 flex gap-2 text-xs">
+            <button
+              type="button"
+              className={reqMode === "existing" ? "font-semibold text-brand" : "text-subtle"}
+              onClick={() => setReqMode("existing")}
+            >
+              Pick contact
+            </button>
+            <span className="text-border-strong">·</span>
+            <button
+              type="button"
+              className={reqMode === "new" ? "font-semibold text-brand" : "text-subtle"}
+              onClick={() => setReqMode("new")}
+            >
+              Add new
+            </button>
+          </div>
+
+          {reqMode === "existing" ? (
+            <select
+              className="input w-full"
+              value={reqContactId}
+              disabled={pending}
+              onChange={(e) => setReqContactId(e.target.value ? Number(e.target.value) : "")}
+            >
+              <option value="">Select contact…</option>
+              {contacts.map((c) => (
+                <option key={c.id} value={c.id}>
+                  {c.name ? `${c.name} <${c.email}>` : c.email}
+                </option>
+              ))}
+            </select>
+          ) : (
+            <div className="space-y-2">
+              <input
+                type="email"
+                className="input w-full"
+                value={newEmail}
+                disabled={pending}
+                onChange={(e) => setNewEmail(e.target.value)}
+                placeholder="customer@example.com"
+              />
+              <input
+                type="text"
+                className="input w-full"
+                value={newName}
+                disabled={pending}
+                onChange={(e) => setNewName(e.target.value)}
+                placeholder="Name (optional)"
+              />
+            </div>
+          )}
+
+          <label className="label mt-3" htmlFor="ta-orig">Original date</label>
+          <DateTimePicker id="ta-orig" value={origDate} onChange={setOrigDate} />
+
+          <button
+            className="btn-primary mt-2 w-full"
+            disabled={pending}
+            onClick={submitRequester}
+          >
+            {pending ? "Saving…" : "Correct requester & date"}
+          </button>
+          <p className="mt-1 text-xs text-subtle">
+            For tickets an agent forwarded on a customer&apos;s behalf. No email is sent. Backdating shifts
+            first-response &amp; SLA metrics — intended for already-resolved tickets.
+          </p>
         </div>
 
         {/* Status */}
