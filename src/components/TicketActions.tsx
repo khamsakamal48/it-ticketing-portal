@@ -75,9 +75,10 @@ export function TicketActions({
   const detectedKnown = detectedEmail
     ? contacts.find((c) => c.email.toLowerCase() === detectedEmail.toLowerCase())
     : undefined;
-  const [reqMode, setReqMode] = useState<"existing" | "new">(
-    detectedEmail && !detectedKnown ? "new" : "existing"
-  );
+  // Default to the contact dropdown (the common reassign case). When detection
+  // found a requester not yet in contacts, its email/name are pre-filled under
+  // the "Add new" tab, one click away.
+  const [reqMode, setReqMode] = useState<"existing" | "new">("existing");
   const [reqContactId, setReqContactId] = useState<number | "">(
     detectedKnown?.id ?? contactId ?? ""
   );
@@ -172,77 +173,101 @@ export function TicketActions({
           </select>
         </div>
 
-        {/* Correct requester + original date */}
-        <div className="rounded-lg border border-border bg-surface-2 p-3">
-          <label className="label">Requester</label>
-          <div className="mb-2 flex gap-2 text-xs">
-            <button
-              type="button"
-              className={reqMode === "existing" ? "font-semibold text-brand" : "text-subtle"}
-              onClick={() => setReqMode("existing")}
+        {/* Correct requester + original date — collapsed by default */}
+        <details className="group rounded-lg border border-border bg-surface-2 [&_summary::-webkit-details-marker]:hidden">
+          <summary className="flex cursor-pointer select-none items-center justify-between px-3 py-2 text-sm font-medium text-fg">
+            <span>Correct requester &amp; date</span>
+            <svg
+              className="h-4 w-4 text-subtle transition-transform group-open:rotate-180"
+              viewBox="0 0 20 20"
+              fill="currentColor"
+              aria-hidden
             >
-              Pick contact
-            </button>
-            <span className="text-border-strong">·</span>
-            <button
-              type="button"
-              className={reqMode === "new" ? "font-semibold text-brand" : "text-subtle"}
-              onClick={() => setReqMode("new")}
-            >
-              Add new
-            </button>
-          </div>
+              <path
+                fillRule="evenodd"
+                d="M5.23 7.21a.75.75 0 011.06.02L10 11.17l3.71-3.94a.75.75 0 111.08 1.04l-4.25 4.5a.75.75 0 01-1.08 0l-4.25-4.5a.75.75 0 01.02-1.06z"
+                clipRule="evenodd"
+              />
+            </svg>
+          </summary>
 
-          {reqMode === "existing" ? (
-            <select
-              className="input w-full"
-              value={reqContactId}
-              disabled={pending}
-              onChange={(e) => setReqContactId(e.target.value ? Number(e.target.value) : "")}
-            >
-              <option value="">Select contact…</option>
-              {contacts.map((c) => (
-                <option key={c.id} value={c.id}>
-                  {c.name ? `${c.name} <${c.email}>` : c.email}
-                </option>
-              ))}
-            </select>
-          ) : (
-            <div className="space-y-2">
-              <input
-                type="email"
-                className="input w-full"
-                value={newEmail}
-                disabled={pending}
-                onChange={(e) => setNewEmail(e.target.value)}
-                placeholder="customer@example.com"
-              />
-              <input
-                type="text"
-                className="input w-full"
-                value={newName}
-                disabled={pending}
-                onChange={(e) => setNewName(e.target.value)}
-                placeholder="Name (optional)"
-              />
+          <div className="border-t border-border p-3">
+            {/* Tabs: choose an existing contact vs add a new one. */}
+            <div className="mb-2 inline-flex rounded-md bg-surface p-0.5 text-xs ring-1 ring-inset ring-border">
+              <button
+                type="button"
+                className={`rounded px-2.5 py-1 transition-colors ${
+                  reqMode === "existing" ? "bg-brand text-white" : "text-subtle hover:text-fg"
+                }`}
+                onClick={() => setReqMode("existing")}
+              >
+                Pick contact
+              </button>
+              <button
+                type="button"
+                className={`rounded px-2.5 py-1 transition-colors ${
+                  reqMode === "new" ? "bg-brand text-white" : "text-subtle hover:text-fg"
+                }`}
+                onClick={() => setReqMode("new")}
+              >
+                Add new
+              </button>
             </div>
-          )}
 
-          <label className="label mt-3" htmlFor="ta-orig">Original date</label>
-          <DateTimePicker id="ta-orig" value={origDate} onChange={setOrigDate} />
+            {reqMode === "existing" ? (
+              <select
+                className="input w-full"
+                value={reqContactId}
+                disabled={pending}
+                onChange={(e) => setReqContactId(e.target.value ? Number(e.target.value) : "")}
+              >
+                <option value="">Select contact…</option>
+                {contacts.map((c) => (
+                  <option key={c.id} value={c.id}>
+                    {c.name ? `${c.name} <${c.email}>` : c.email}
+                  </option>
+                ))}
+              </select>
+            ) : (
+              <div className="space-y-2">
+                <input
+                  type="email"
+                  className="input w-full"
+                  value={newEmail}
+                  disabled={pending}
+                  onChange={(e) => setNewEmail(e.target.value)}
+                  placeholder="customer@example.com"
+                />
+                <input
+                  type="text"
+                  className="input w-full"
+                  value={newName}
+                  disabled={pending}
+                  onChange={(e) => setNewName(e.target.value)}
+                  placeholder="Name (optional)"
+                />
+                <p className="text-xs text-subtle">
+                  A new contact is created (or matched by email) and set as the requester when you save.
+                </p>
+              </div>
+            )}
 
-          <button
-            className="btn-primary mt-2 w-full"
-            disabled={pending}
-            onClick={submitRequester}
-          >
-            {pending ? "Saving…" : "Correct requester & date"}
-          </button>
-          <p className="mt-1 text-xs text-subtle">
-            For tickets an agent forwarded on a customer&apos;s behalf. No email is sent. Backdating shifts
-            first-response &amp; SLA metrics — intended for already-resolved tickets.
-          </p>
-        </div>
+            <label className="label mt-3" htmlFor="ta-orig">Original date</label>
+            <DateTimePicker id="ta-orig" value={origDate} onChange={setOrigDate} />
+
+            <button
+              className="btn-primary mt-2 w-full"
+              disabled={pending}
+              onClick={submitRequester}
+            >
+              {pending ? "Saving…" : "Correct requester & date"}
+            </button>
+            <p className="mt-1 text-xs text-subtle">
+              For tickets an agent forwarded on a customer&apos;s behalf. No email is sent. Backdating shifts
+              first-response &amp; SLA metrics — intended for already-resolved tickets.
+            </p>
+          </div>
+        </details>
 
         {/* Status */}
         <div>
