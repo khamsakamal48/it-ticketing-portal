@@ -4,7 +4,9 @@
 INSERT INTO system_config (config_key, config_value, description) VALUES
   ('sla_first_response_hours', '23', 'Hours before first response SLA breach'),
   ('sla_response_gap_hours', '23', 'Hours before response gap SLA breach'),
-  ('sla_escalation_hours', '48', 'Hours before escalation to manager'),
+  ('sla_escalation_hours', '24', 'Hours before Level-2 escalation to manager; also the resolution-SLA target used by the dashboard'),
+  ('sla_escalation_l3_hours', '48', 'Hours before Level-3 escalation to senior management (repeats daily until resolved)'),
+  ('senior_manager_email', 'sudarshan.chavan@iitbacr.com', 'Level-3 escalation recipient(s); comma/semicolon-separated for multiple seniors'),
   ('business_hours_start', '09:30', 'Business hours start'),
   ('business_hours_end', '18:30', 'Business hours end'),
   ('business_days', 'Mon,Tue,Wed,Thu,Fri', 'Business days'),
