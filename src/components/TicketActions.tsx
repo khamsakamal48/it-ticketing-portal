@@ -174,11 +174,11 @@ export function TicketActions({
         </div>
 
         {/* Correct requester + original date — collapsed by default */}
-        <details className="group rounded-lg border border-border bg-surface-2 [&_summary::-webkit-details-marker]:hidden">
-          <summary className="flex cursor-pointer select-none items-center justify-between px-3 py-2 text-sm font-medium text-fg">
-            <span>Correct requester &amp; date</span>
+        <details className="group [&_summary::-webkit-details-marker]:hidden">
+          <summary className="input flex w-full cursor-pointer select-none items-center justify-between">
+            <span>Wrong requester or date?</span>
             <svg
-              className="h-4 w-4 text-subtle transition-transform group-open:rotate-180"
+              className="h-4 w-4 shrink-0 text-muted transition-transform group-open:rotate-180"
               viewBox="0 0 20 20"
               fill="currentColor"
               aria-hidden
@@ -191,7 +191,7 @@ export function TicketActions({
             </svg>
           </summary>
 
-          <div className="border-t border-border p-3">
+          <div className="mt-2 rounded-lg border border-border bg-surface-2 p-3">
             {/* Tabs: choose an existing contact vs add a new one. */}
             <div className="mb-2 inline-flex rounded-md bg-surface p-0.5 text-xs ring-1 ring-inset ring-border">
               <button
