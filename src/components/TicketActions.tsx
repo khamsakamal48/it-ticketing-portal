@@ -193,24 +193,24 @@ export function TicketActions({
 
           <div className="mt-2 rounded-lg border border-border bg-surface-2 p-3">
             {/* Tabs: choose an existing contact vs add a new one. */}
-            <div className="mb-2 inline-flex rounded-md bg-surface p-0.5 text-xs ring-1 ring-inset ring-border">
+            <div className="mb-2 flex w-full rounded-md bg-surface p-0.5 text-xs ring-1 ring-inset ring-border">
               <button
                 type="button"
-                className={`rounded px-2.5 py-1 transition-colors ${
+                className={`flex-1 rounded px-2 py-1 text-center transition-colors ${
                   reqMode === "existing" ? "bg-brand text-white" : "text-subtle hover:text-fg"
                 }`}
                 onClick={() => setReqMode("existing")}
               >
-                Pick contact
+                Select existing requester
               </button>
               <button
                 type="button"
-                className={`rounded px-2.5 py-1 transition-colors ${
+                className={`flex-1 rounded px-2 py-1 text-center transition-colors ${
                   reqMode === "new" ? "bg-brand text-white" : "text-subtle hover:text-fg"
                 }`}
                 onClick={() => setReqMode("new")}
               >
-                Add new
+                Add a new requester
               </button>
             </div>
 
