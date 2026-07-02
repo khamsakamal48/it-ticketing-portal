@@ -11,7 +11,8 @@ INSERT INTO system_config (config_key, config_value, description) VALUES
   ('business_hours_end', '18:30', 'Business hours end'),
   ('business_days', 'Mon,Tue,Wed,Thu,Fri', 'Business days'),
   ('business_timezone', 'Asia/Kolkata', 'Default business timezone'),
-  ('assignment_strategy', 'round_robin', 'Assignment strategy')
+  ('assignment_strategy', 'round_robin', 'Assignment strategy'),
+  ('portal_url', 'https://helpdesk.iitbacr.space', 'Public base URL of the agent portal; used to build the deep-link "View ticket" button in notification emails (no trailing slash)')
 ON CONFLICT (config_key) DO NOTHING;
 
 INSERT INTO users (name, email, timezone, role) VALUES
