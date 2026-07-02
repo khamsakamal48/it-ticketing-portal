@@ -41,7 +41,7 @@ export function Filters({
   const exportHref = `/api/export?${sp.toString()}`;
 
   return (
-    <div className="card relative z-40 flex flex-wrap items-end gap-3 p-4">
+    <div className="card relative z-10 flex flex-wrap items-end gap-3 p-4">
       <div>
         <label className="label" htmlFor="f-from">From</label>
         <DatePicker
