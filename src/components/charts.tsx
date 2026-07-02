@@ -163,7 +163,7 @@ export function ChartCard({
         </div>
         {action}
       </div>
-      <div className="flex-1" style={{ minHeight: `${height}px` }}>{children}</div>
+      <div className="grow" style={{ height: `${height}px` }}>{children}</div>
     </div>
   );
 }
