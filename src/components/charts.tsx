@@ -183,7 +183,7 @@ export function TrendLine({ data, linkByDay }: { data: { day: string; count: num
     : undefined;
   return (
     <ResponsiveContainer width="100%" height="100%">
-      <AreaChart data={data} onClick={onClick} style={linkByDay ? { cursor: "pointer" } : undefined} margin={{ top: 5, right: 10, left: -18, bottom: 0 }}>
+      <AreaChart data={data} onClick={onClick} style={linkByDay ? { cursor: "pointer" } : undefined} margin={{ top: 5, right: 10, left: -8, bottom: 0 }}>
         <defs>
           <linearGradient id="trendFill" x1="0" y1="0" x2="0" y2="1">
             <stop offset="0%" stopColor={lineColor} stopOpacity={0.30} />
@@ -192,7 +192,7 @@ export function TrendLine({ data, linkByDay }: { data: { day: string; count: num
         </defs>
         <CartesianGrid strokeDasharray="3 3" stroke={t.grid} vertical={false} />
         <XAxis dataKey="day" tick={{ fontSize: 11, fill: t.axis }} stroke={t.grid} tickLine={false} tickFormatter={formatDayTick} />
-        <YAxis tick={{ fontSize: 11, fill: t.axis }} stroke={t.grid} tickLine={false} allowDecimals={false} width={32} />
+        <YAxis tick={{ fontSize: 11, fill: t.axis }} stroke={t.grid} tickLine={false} allowDecimals={false} width={40} />
         <Tooltip content={<ChartTooltip />} cursor={{ stroke: t.grid }} />
         <Area
           type="monotone"
@@ -380,7 +380,7 @@ export function FlowTrend({ data, linkByDay }: { data: { day: string; created: n
     <div className="flex h-full flex-col">
       <div className="min-h-0 flex-1">
         <ResponsiveContainer width="100%" height="100%">
-          <AreaChart data={data} onClick={onClick} style={linkByDay ? { cursor: "pointer" } : undefined} margin={{ top: 5, right: 10, left: -18, bottom: 0 }}>
+          <AreaChart data={data} onClick={onClick} style={linkByDay ? { cursor: "pointer" } : undefined} margin={{ top: 5, right: 10, left: -8, bottom: 0 }}>
             <defs>
               <linearGradient id="flowCreated" x1="0" y1="0" x2="0" y2="1">
                 <stop offset="0%" stopColor="#0A84FF" stopOpacity={0.28} />
@@ -393,7 +393,7 @@ export function FlowTrend({ data, linkByDay }: { data: { day: string; created: n
             </defs>
             <CartesianGrid strokeDasharray="3 3" stroke={t.grid} vertical={false} />
             <XAxis dataKey="day" tick={{ fontSize: 11, fill: t.axis }} stroke={t.grid} tickLine={false} tickFormatter={formatDayTick} />
-            <YAxis tick={{ fontSize: 11, fill: t.axis }} stroke={t.grid} tickLine={false} allowDecimals={false} width={32} />
+            <YAxis tick={{ fontSize: 11, fill: t.axis }} stroke={t.grid} tickLine={false} allowDecimals={false} width={40} />
             <Tooltip content={<ChartTooltip />} cursor={{ stroke: t.grid }} />
             <Area type="monotone" dataKey="created" name="Inflow"  stroke="#0A84FF" strokeWidth={2.5} fill="url(#flowCreated)" dot={false} activeDot={{ r: 4, strokeWidth: 0, fill: "#0A84FF" }} />
             <Area type="monotone" dataKey="closed"  name="Outflow" stroke="#30D158" strokeWidth={2.5} fill="url(#flowClosed)"   dot={false} activeDot={{ r: 4, strokeWidth: 0, fill: "#30D158" }} />

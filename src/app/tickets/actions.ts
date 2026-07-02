@@ -72,8 +72,11 @@ async function activeAgent(
   client: PoolClient,
   userId: number
 ): Promise<{ email: string; name: string | null } | null> {
+  // Senior management is never a valid assignee — excluded so reassignTicket
+  // throws for a senior_manager id even if one is smuggled past the dropdown.
   const { rows } = await client.query<{ email: string; name: string | null }>(
-    `SELECT email, name FROM users WHERE id = $1 AND is_active = true`,
+    `SELECT email, name FROM users
+       WHERE id = $1 AND is_active = true AND role IS DISTINCT FROM 'senior_manager'`,
     [userId]
   );
   return rows[0] ?? null;
