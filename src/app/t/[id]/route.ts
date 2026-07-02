@@ -14,5 +14,14 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ id: 
   if (!/^\d+$/.test(id) || !Number.isInteger(n) || n < 0) {
     return new NextResponse("Not found", { status: 404 });
   }
-  return NextResponse.redirect(new URL(`/tickets/${encodeTicketId(n)}`, req.url));
+  // Emit a RELATIVE Location so the browser resolves it against the public
+  // address-bar URL (e.g. https://helpdesk.iitbacr.space/t/17). Building an
+  // absolute URL from `req.url` breaks behind the reverse proxy: inside the
+  // container `req.url` host is the internal listen address (0.0.0.0:3000),
+  // which would leak into the redirect. A relative Location sidesteps host
+  // detection entirely (no dependency on x-forwarded-* headers or env).
+  return new NextResponse(null, {
+    status: 307,
+    headers: { Location: `/tickets/${encodeTicketId(n)}` },
+  });
 }
