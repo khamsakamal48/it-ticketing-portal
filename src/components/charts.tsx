@@ -350,7 +350,7 @@ export function AgentBars({
         </defs>
         <CartesianGrid strokeDasharray="3 3" stroke={t.grid} horizontal={false} />
         <XAxis type="number" tick={{ fontSize: 11, fill: t.axis }} stroke={t.grid} allowDecimals={false} />
-        <YAxis type="category" dataKey="agent" tick={<SingleLineTick fill={t.fg} fontSize={13} />} stroke={t.grid} width={140} />
+        <YAxis type="category" dataKey="agent" tick={<SingleLineTick fill={t.fg} fontSize={13} />} stroke={t.grid} width={140} interval={0} />
         <Tooltip content={<ChartTooltip />} cursor={{ fill: t.grid, opacity: 0.4 }} />
         <Bar dataKey="count" name="Tickets" fill="url(#barGrad)" radius={[0, 6, 6, 0]} maxBarSize={22} onClick={onBar} style={onBar ? { cursor: "pointer" } : undefined} />
       </BarChart>
@@ -489,7 +489,7 @@ export function BucketBars({
         </defs>
         <CartesianGrid strokeDasharray="3 3" stroke={t.grid} horizontal={false} />
         <XAxis type="number" tick={{ fontSize: 11, fill: t.axis }} stroke={t.grid} allowDecimals={false} />
-        <YAxis type="category" dataKey="label" tick={<SingleLineTick fill={t.fg} />} stroke={t.grid} width={labelWidth} />
+        <YAxis type="category" dataKey="label" tick={<SingleLineTick fill={t.fg} />} stroke={t.grid} width={labelWidth} interval={0} />
         <Tooltip content={<ChartTooltip />} cursor={{ fill: t.grid, opacity: 0.4 }} />
         <Bar dataKey="count" name="Tickets" fill="url(#bucketGrad)" radius={[0, 6, 6, 0]} maxBarSize={22} onClick={onBar} style={onBar ? { cursor: "pointer" } : undefined} />
       </BarChart>
