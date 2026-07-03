@@ -270,6 +270,18 @@ export async function correctRequester(
         // Backdate the ticket to the customer's original send-time.
         if (originalISO) {
           const oldCreated = before?.created_at ? new Date(before.created_at) : null;
+          // Directional guard: the original date corrects when the customer first
+          // wrote in, so it may only move EARLIER (or stay equal). Allowing a later
+          // value would shrink the computed resolution time (closed_at − created_at)
+          // and let an agent misrepresent how long a ticket actually took.
+          if (
+            oldCreated &&
+            !Number.isNaN(oldCreated.getTime()) &&
+            new Date(originalISO).getTime() > oldCreated.getTime()
+          )
+            throw new RuleError(
+              "Original date can only be moved earlier — it corrects when the customer first wrote in. Moving it to a later time is not allowed."
+            );
           await client.query(
             `UPDATE tickets SET created_at = $1, last_customer_reply_at = $1, updated_at = NOW() WHERE id = $2`,
             [originalISO, ticketId]

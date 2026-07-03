@@ -12,7 +12,7 @@ import {
   getActiveAgents,
   getContacts,
 } from "@/lib/queries";
-import { fmtIST } from "@/lib/datetime";
+import { fmtIST, fmtDurationHours } from "@/lib/datetime";
 import { decodeTicketId } from "@/lib/ticket-id";
 import { isHtmlBody, sanitizeEmailHtml } from "@/lib/sanitize-email";
 import { parseForwardedOriginal } from "@/lib/forwarded-email";
@@ -40,6 +40,17 @@ export default async function TicketDetail({ params }: { params: Promise<{ slug:
   const firstCustomerMsg = messages.find((m) => m.sender_type === "customer") ?? messages[0];
   const detectedOriginal = parseForwardedOriginal(firstCustomerMsg?.body);
 
+  // Manager visibility: was the original (created) date manually corrected? Flag it
+  // so a backdate is obvious without opening the audit trail.
+  const dateCorrected = audit.some((a) => a.action === "original_date_change");
+
+  // Cumulative hold time (subtracted from resolution). Include any still-open hold
+  // span so an in-progress hold is reflected too.
+  const openHoldSeconds = ticket.on_hold_since
+    ? Math.max(0, (Date.now() - new Date(ticket.on_hold_since).getTime()) / 1000)
+    : 0;
+  const holdHours = (Number(ticket.total_hold_seconds ?? 0) + openHoldSeconds) / 3600;
+
   return (
     <AppShell active="/tickets">
       <div className="animate-rise-in">
@@ -63,6 +74,14 @@ export default async function TicketDetail({ params }: { params: Promise<{ slug:
               <span>{ticket.contact_email ?? "unknown contact"}</span>
               <span className="text-border-strong">·</span>
               <span>created {fmtIST(ticket.created_at)}</span>
+              {dateCorrected && (
+                <span
+                  title="The original (created) date was manually corrected on this ticket — see the audit trail."
+                  className="badge bg-pending/10 text-pending ring-1 ring-inset ring-pending/20"
+                >
+                  original date corrected
+                </span>
+              )}
             </div>
           </div>
         </div>
@@ -164,6 +183,15 @@ export default async function TicketDetail({ params }: { params: Promise<{ slug:
               <dl className="space-y-2.5 text-muted">
                 <div className="flex justify-between gap-2"><dt className="text-subtle">Owner</dt><dd className="text-fg">{ticket.owner_name ?? "Unassigned"}</dd></div>
                 <div className="flex justify-between gap-2"><dt className="text-subtle">Escalation</dt><dd className="tabular text-fg">{ticket.escalation_level}</dd></div>
+                {holdHours > 0 && (
+                  <div className="flex justify-between gap-2">
+                    <dt className="text-subtle">On hold</dt>
+                    <dd className="tabular text-fg">
+                      {fmtDurationHours(holdHours)}
+                      <span className="text-subtle"> (excluded from SLA)</span>
+                    </dd>
+                  </div>
+                )}
                 <div className="flex justify-between gap-2"><dt className="text-subtle">Updated</dt><dd className="tabular text-fg">{fmtIST(ticket.updated_at)}</dd></div>
               </dl>
               {tags.length > 0 && (
