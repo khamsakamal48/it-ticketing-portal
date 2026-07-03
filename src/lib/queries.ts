@@ -289,8 +289,8 @@ export async function getAgentPerformance(f: TicketFilters) {
     `SELECT COALESCE(u.name, 'Unassigned') AS agent,
             t.ticket_owner_id AS agent_id,
             COUNT(*) FILTER (WHERE t.status = 'closed') AS resolved,
-            AVG(EXTRACT(EPOCH FROM (t.updated_at - t.created_at)) / 3600)
-              FILTER (WHERE t.status = 'closed')        AS avg_resolution_h,
+            AVG(EXTRACT(EPOCH FROM (t.closed_at - t.created_at)) / 3600 - t.total_hold_seconds / 3600.0)
+              FILTER (WHERE t.status = 'closed' AND t.closed_at IS NOT NULL) AS avg_resolution_h,
             COUNT(*) FILTER (WHERE t.status = 'open')   AS open_load
        FROM tickets t
        LEFT JOIN users u ON u.id = t.ticket_owner_id
