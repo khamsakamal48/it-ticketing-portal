@@ -1,6 +1,7 @@
 import type { LucideIcon } from "lucide-react";
 import Link from "next/link";
 import { cn } from "@/lib/utils";
+import { InfoTip } from "./InfoTip";
 
 type Accent = "blue" | "amber" | "green" | "red" | "slate";
 
@@ -46,6 +47,7 @@ export function KpiCard({
   icon: Icon,
   hero = false,
   href,
+  info,
 }: {
   label: string;
   value: string | number;
@@ -55,6 +57,8 @@ export function KpiCard({
   hero?: boolean;
   /** When set, the whole card becomes a link to the filtered ticket queue. */
   href?: string;
+  /** Short definition shown in a top-right 'i' info tip. */
+  info?: string;
 }) {
   const a = ACCENT[accent];
 
@@ -101,21 +105,24 @@ export function KpiCard({
           {label}
         </span>
 
-        {Icon && (
-          <span
-            className="flex shrink-0 items-center justify-center"
-            style={{
-              width: hero ? "30px" : "26px",
-              height: hero ? "30px" : "26px",
-              borderRadius: "10px",
-              background: "rgba(255,255,255,0.20)",
-              border: "1px solid rgba(255,255,255,0.28)",
-              color: "#ffffff",
-            }}
-          >
-            <Icon size={hero ? 15 : 13} />
-          </span>
-        )}
+        <span className="flex shrink-0 items-center gap-1.5">
+          {info && <InfoTip text={info} tone="light" size={14} />}
+          {Icon && (
+            <span
+              className="flex shrink-0 items-center justify-center"
+              style={{
+                width: hero ? "30px" : "26px",
+                height: hero ? "30px" : "26px",
+                borderRadius: "10px",
+                background: "rgba(255,255,255,0.20)",
+                border: "1px solid rgba(255,255,255,0.28)",
+                color: "#ffffff",
+              }}
+            >
+              <Icon size={hero ? 15 : 13} />
+            </span>
+          )}
+        </span>
       </div>
 
       {/* KPI value — 28px / 700 / -0.02em per skill spec */}

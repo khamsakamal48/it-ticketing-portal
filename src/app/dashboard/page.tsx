@@ -13,9 +13,12 @@ import {
   SENTIMENT_PALETTE,
 } from "@/components/charts";
 import { Filters } from "@/components/Filters";
+import { InfoTip } from "@/components/InfoTip";
+import { DailyStatusBanner } from "@/components/DailyStatusBanner";
 import { parseFilters } from "@/lib/filters";
 import { titleCase } from "@/lib/utils";
 import { getConfigValue } from "@/lib/config";
+import { VISUAL_INFO } from "@/lib/visual-info";
 import {
   AlertTriangle,
   UserX,
@@ -44,6 +47,7 @@ import {
   getSentimentBreakdown,
   getAgentPerformance,
   getTopRequesters,
+  getLatestDailyStatus,
 } from "@/lib/queries";
 import { encodeAgentId } from "@/lib/opaque-id";
 
@@ -77,6 +81,7 @@ export default async function DashboardPage({
     sentiment,
     agentPerf,
     requesters,
+    dailyStatus,
   ] = await Promise.all([
     getKpis(f),
     getStatusBreakdown(f),
@@ -93,6 +98,7 @@ export default async function DashboardPage({
     getSentimentBreakdown(f),
     getAgentPerformance(f),
     getTopRequesters(f),
+    getLatestDailyStatus(),
   ]);
 
   const n = (v: string | null | undefined) => Number(v ?? 0);
@@ -177,7 +183,16 @@ export default async function DashboardPage({
           </div>
         </div>
 
-        <Filters agents={agents.map((a) => ({ id: encodeAgentId(a.id), name: a.name }))} showFacets={false} />
+        {/* Top bar: date filters + PDF export on the left, AI health status banner
+            filling the previously-empty right side. */}
+        <div className="flex flex-col gap-3 lg:flex-row lg:items-stretch">
+          <Filters
+            agents={agents.map((a) => ({ id: encodeAgentId(a.id), name: a.name }))}
+            showFacets={false}
+            showPdf
+          />
+          <DailyStatusBanner status={dailyStatus} info={VISUAL_INFO.daily_status} />
+        </div>
 
         {/* ───────────────── Ticket overview ───────────────── */}
         <div className="pt-2">
@@ -212,29 +227,29 @@ export default async function DashboardPage({
             of the total ("out of N · X%"). Explicit breakpoints collapse to
             3 / 2 columns on tablet / mobile. */}
         <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-5">
-          <KpiCard label="Open" value={n(kpis?.open)} sub={share(kpis?.open)} accent="amber" icon={Inbox} hero href={queueHref({ status: "open" })} />
-          <KpiCard label="Unassigned" value={n(kpis?.unassigned)} sub={share(kpis?.unassigned)} accent="red" icon={UserX} hero href={queueHref({ owner: "unassigned" })} />
-          <KpiCard label="Escalated" value={n(kpis?.escalated)} sub={share(kpis?.escalated)} accent="red" icon={AlertTriangle} hero href={queueHref({ escalated: "1" })} />
-          <KpiCard label="Closed" value={n(kpis?.closed)} sub={share(kpis?.closed)} accent="green" icon={Archive} hero href={queueHref({ status: "closed" })} />
-          <KpiCard label="On Hold" value={n(kpis?.on_hold)} sub={share(kpis?.on_hold)} accent="slate" icon={PauseCircle} hero href={queueHref({ status: "on_hold" })} />
+          <KpiCard label="Open" value={n(kpis?.open)} sub={share(kpis?.open)} accent="amber" icon={Inbox} hero href={queueHref({ status: "open" })} info={VISUAL_INFO.open} />
+          <KpiCard label="Unassigned" value={n(kpis?.unassigned)} sub={share(kpis?.unassigned)} accent="red" icon={UserX} hero href={queueHref({ owner: "unassigned" })} info={VISUAL_INFO.unassigned} />
+          <KpiCard label="Escalated" value={n(kpis?.escalated)} sub={share(kpis?.escalated)} accent="red" icon={AlertTriangle} hero href={queueHref({ escalated: "1" })} info={VISUAL_INFO.escalated} />
+          <KpiCard label="Closed" value={n(kpis?.closed)} sub={share(kpis?.closed)} accent="green" icon={Archive} hero href={queueHref({ status: "closed" })} info={VISUAL_INFO.closed} />
+          <KpiCard label="On Hold" value={n(kpis?.on_hold)} sub={share(kpis?.on_hold)} accent="slate" icon={PauseCircle} hero href={queueHref({ status: "on_hold" })} info={VISUAL_INFO.on_hold} />
         </div>
 
         {/* Responsiveness / SLA KPI strip — same responsive column rules. */}
         <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-5">
-          <KpiCard label="First Response" value={medianFr} sub="median" accent="blue" icon={Gauge} hero href={queueHref({})} />
-          <KpiCard label="Avg Resolution" value={avgRes} accent="green" icon={Timer} hero href={queueHref({ status: "closed" })} />
-          <KpiCard label="SLA Compliance" value={slaCompliancePct} sub={`within ${slaEscalationHours}h · ${totalClosed} closed`} accent="green" icon={ShieldCheck} hero href={queueHref({ status: "closed" })} />
-          <KpiCard label="Breaching Now" value={breachingNow} sub={`open > ${slaEscalationHours}h`} accent="red" icon={Flame} hero href={queueHref({ status: "open", minageh: String(slaEscalationHours) })} />
-          <KpiCard label="Net Backlog" value={netLabel} sub={netDelta > 0 ? "growing" : netDelta < 0 ? "shrinking" : "flat"} accent="slate" icon={TrendingUp} hero href={queueHref({})} />
+          <KpiCard label="First Response" value={medianFr} sub="median" accent="blue" icon={Gauge} hero href={queueHref({})} info={VISUAL_INFO.first_response} />
+          <KpiCard label="Avg Resolution" value={avgRes} accent="green" icon={Timer} hero href={queueHref({ status: "closed" })} info={VISUAL_INFO.avg_resolution} />
+          <KpiCard label="SLA Compliance" value={slaCompliancePct} sub={`within ${slaEscalationHours}h · ${totalClosed} closed`} accent="green" icon={ShieldCheck} hero href={queueHref({ status: "closed" })} info={VISUAL_INFO.sla_compliance} />
+          <KpiCard label="Breaching Now" value={breachingNow} sub={`open > ${slaEscalationHours}h`} accent="red" icon={Flame} hero href={queueHref({ status: "open", minageh: String(slaEscalationHours) })} info={VISUAL_INFO.breaching_now} />
+          <KpiCard label="Net Backlog" value={netLabel} sub={netDelta > 0 ? "growing" : netDelta < 0 ? "shrinking" : "flat"} accent="slate" icon={TrendingUp} hero href={queueHref({})} info={VISUAL_INFO.net_backlog} />
         </div>
 
         <div className="grid grid-cols-1 gap-4 lg:grid-cols-3">
           <div className="lg:col-span-2">
-            <ChartCard title="Ticket volume">
+            <ChartCard title="Ticket volume" info={VISUAL_INFO.ticket_volume}>
               <TrendLine data={trend.map((r) => ({ day: r.day, count: Number(r.count) }))} linkByDay />
             </ChartCard>
           </div>
-          <ChartCard title="By status">
+          <ChartCard title="By status" info={VISUAL_INFO.by_status}>
             <StatusPie data={status.map((r) => ({ name: r.status, value: Number(r.count) }))} linkParam="status" />
           </ChartCard>
         </div>
@@ -245,36 +260,39 @@ export default async function DashboardPage({
             const agentChartHeight = Math.max(256, byAgent.length * 44);
             return (
               <>
-                <ChartCard title="Tickets by agent" chartHeight={agentChartHeight}>
+                <ChartCard title="Tickets by agent" chartHeight={agentChartHeight} info={VISUAL_INFO.by_agent}>
                   <AgentBars data={byAgent.map((r) => ({ agent: r.agent, count: Number(r.count) }))} linkValueMap={agentOwnerMap} />
                 </ChartCard>
                 <div className="card p-5">
-                  <div className="mb-4 flex items-center gap-2">
-                    <span
-                      aria-hidden
-                      style={{
-                        display: "inline-block",
-                        width: "10px",
-                        height: "10px",
-                        borderRadius: "3px",
-                        background: "linear-gradient(135deg,#30D158,#00C7BE)",
-                        boxShadow: "0 2px 6px rgba(48,209,88,0.45)",
-                        flexShrink: 0,
-                      }}
-                    />
-                    <h3
-                      style={{
-                        fontSize: "11px",
-                        fontWeight: 700,
-                        letterSpacing: "0.14em",
-                        textTransform: "uppercase",
-                        color: "rgb(var(--fg))",
-                        fontFamily:
-                          "-apple-system,BlinkMacSystemFont,'SF Pro Display','Helvetica Neue',Arial,sans-serif",
-                      }}
-                    >
-                      Agent performance
-                    </h3>
+                  <div className="mb-4 flex items-center justify-between">
+                    <div className="flex items-center gap-2">
+                      <span
+                        aria-hidden
+                        style={{
+                          display: "inline-block",
+                          width: "10px",
+                          height: "10px",
+                          borderRadius: "3px",
+                          background: "linear-gradient(135deg,#30D158,#00C7BE)",
+                          boxShadow: "0 2px 6px rgba(48,209,88,0.45)",
+                          flexShrink: 0,
+                        }}
+                      />
+                      <h3
+                        style={{
+                          fontSize: "11px",
+                          fontWeight: 700,
+                          letterSpacing: "0.14em",
+                          textTransform: "uppercase",
+                          color: "rgb(var(--fg))",
+                          fontFamily:
+                            "-apple-system,BlinkMacSystemFont,'SF Pro Display','Helvetica Neue',Arial,sans-serif",
+                        }}
+                      >
+                        Agent performance
+                      </h3>
+                    </div>
+                    <InfoTip text={VISUAL_INFO.agent_performance} />
                   </div>
                   {/* CSS-grid layout — proportional fr columns, guaranteed alignment */}
                   <div style={{ display: "flex", flexDirection: "column", fontSize: "13px" }}>
@@ -334,18 +352,18 @@ export default async function DashboardPage({
         {/* Flow: inflow vs outflow + backlog aging */}
         <div className="grid grid-cols-1 gap-4 lg:grid-cols-3">
           <div className="lg:col-span-2">
-            <ChartCard title="Inflow vs outflow">
+            <ChartCard title="Inflow vs outflow" info={VISUAL_INFO.inflow_outflow}>
               <FlowTrend data={flow.map((r) => ({ day: r.day, created: Number(r.created), closed: Number(r.closed) }))} linkByDay />
             </ChartCard>
           </div>
-          <ChartCard title="Backlog aging">
+          <ChartCard title="Backlog aging" info={VISUAL_INFO.backlog_aging}>
             <BucketBars data={agingData} emptyMsg="No open tickets." labelWidth={56} linkParam="agebucket" extraParams={{ status: "open" }} />
           </ChartCard>
         </div>
 
         {/* Root-cause: intent · sentiment */}
         <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
-          <ChartCard title="Intent mix">
+          <ChartCard title="Intent mix" info={VISUAL_INFO.intent_mix}>
             <BucketBars
               data={intent.map((r) => ({ label: titleCase(r.intent) ?? r.intent, count: Number(r.count) }))}
               emptyMsg="No AI intent data."
@@ -354,7 +372,7 @@ export default async function DashboardPage({
               linkValueMap={intentValueMap}
             />
           </ChartCard>
-          <ChartCard title="Sentiment">
+          <ChartCard title="Sentiment" info={VISUAL_INFO.sentiment}>
             <DonutBreakdown
               data={sentiment.map((r) => ({ name: r.sentiment, value: Number(r.count) }))}
               palette={SENTIMENT_PALETTE}
@@ -366,7 +384,7 @@ export default async function DashboardPage({
 
         {/* Priority mix + top requesters */}
         <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
-          <ChartCard title="Priority mix">
+          <ChartCard title="Priority mix" info={VISUAL_INFO.priority_mix}>
             <DonutBreakdown
               data={priority.map((r) => ({ name: r.priority, value: Number(r.count) }))}
               palette={PRIORITY_PALETTE}
@@ -374,7 +392,7 @@ export default async function DashboardPage({
               linkParam="priority"
             />
           </ChartCard>
-          <ChartCard title="Top requesters" chartHeight={Math.max(256, requesters.length * 36)}>
+          <ChartCard title="Top requesters" chartHeight={Math.max(256, requesters.length * 36)} info={VISUAL_INFO.top_requesters}>
             <BucketBars
               data={requesters.map((r) => ({ label: r.name, count: Number(r.count) }))}
               emptyMsg="No requesters in range."

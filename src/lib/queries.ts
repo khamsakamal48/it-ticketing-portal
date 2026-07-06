@@ -469,3 +469,25 @@ export async function exportTickets(f: TicketFilters) {
     ai_sentiment: titleCase(r.ai_sentiment as string | null),
   }));
 }
+
+// ---------------- Daily AI health status ----------------
+export type DailyStatusSeverity = "healthy" | "elevated" | "degraded" | "outage";
+
+export interface DailyStatus {
+  summary: string;
+  severity: DailyStatusSeverity;
+  generated_at: string; // UTC ISO
+}
+
+// Latest AI-generated IT-health status (written daily by the n8n cron workflow).
+// Returns null before the first row exists. Not date-filtered — always the most
+// recent snapshot of overall system health.
+export async function getLatestDailyStatus(): Promise<DailyStatus | null> {
+  const row = await query<DailyStatus>(
+    `SELECT summary, severity, generated_at
+       FROM daily_status
+       ORDER BY generated_at DESC
+       LIMIT 1`
+  );
+  return row[0] ?? null;
+}

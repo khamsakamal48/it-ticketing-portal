@@ -291,3 +291,53 @@ body > * {
     transition-duration: 0.01ms !important;
   }
 }
+
+/* ─────────────────────────── PDF / print export ───────────────────────────
+   Used by /dashboard/report rendered through headless Chrome. Fixes learned
+   from prior HTML→PDF work: force color, drop box-shadows (Chrome leaves gray
+   artifacts), and give gradient-clipped text a solid color (otherwise it prints
+   as black boxes). Scoped to .report-root so the live app is untouched, and
+   duplicated under @media print for the actual print pipeline. */
+.report-root,
+.report-root * {
+  -webkit-print-color-adjust: exact !important;
+  print-color-adjust: exact !important;
+}
+.report-root .text-gradient {
+  /* Solid fallback — background-clip:text renders as black boxes in Chrome PDF. */
+  background-image: none !important;
+  -webkit-text-fill-color: currentColor !important;
+  color: #0A84FF !important;
+}
+.report-root [data-noprint] {
+  display: none !important;
+}
+
+@page {
+  size: A4 landscape;
+  margin: 12mm;
+}
+
+@media print {
+  html,
+  body {
+    background: #ffffff !important;
+    -webkit-print-color-adjust: exact !important;
+    print-color-adjust: exact !important;
+  }
+  [data-noprint] {
+    display: none !important;
+  }
+  .report-root .card {
+    /* Box-shadows leave gray smears in Chrome's PDF; use a hairline instead. */
+    box-shadow: none !important;
+    border: 1px solid #e4e5ea !important;
+    break-inside: avoid;
+    page-break-inside: avoid;
+  }
+  .report-root .text-gradient {
+    background-image: none !important;
+    -webkit-text-fill-color: currentColor !important;
+    color: #0A84FF !important;
+  }
+}

@@ -2,7 +2,7 @@
 
 import { useRouter, useSearchParams, usePathname } from "next/navigation";
 import { useCallback } from "react";
-import { Download } from "lucide-react";
+import { Download, FileText } from "lucide-react";
 import { DatePicker } from "./DatePicker";
 
 interface Agent {
@@ -17,11 +17,13 @@ export function Filters({
   showSearch = false,
   showExport = false,
   showFacets = true,
+  showPdf = false,
 }: {
   agents: Agent[];
   showSearch?: boolean;
   showExport?: boolean;
   showFacets?: boolean; // status/priority/agent dropdowns (hidden on dashboard)
+  showPdf?: boolean; // dashboard PDF export button
 }) {
   const router = useRouter();
   const pathname = usePathname();
@@ -39,6 +41,7 @@ export function Filters({
   );
 
   const exportHref = `/api/export?${sp.toString()}`;
+  const pdfHref = `/api/dashboard/pdf?${sp.toString()}`;
 
   return (
     <div className="card relative z-10 flex flex-wrap items-end gap-3 p-4">
@@ -112,6 +115,11 @@ export function Filters({
       {showExport && (
         <a href={exportHref} className="btn-ghost ml-auto">
           <Download size={16} /> Export CSV
+        </a>
+      )}
+      {showPdf && (
+        <a href={pdfHref} className="btn-ghost ml-auto" data-noprint>
+          <FileText size={16} /> Export PDF
         </a>
       )}
     </div>

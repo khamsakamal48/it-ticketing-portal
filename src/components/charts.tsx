@@ -15,8 +15,10 @@ import {
   YAxis,
   Tooltip,
   CartesianGrid,
+  LabelList,
   type TooltipProps,
 } from "recharts";
+import { InfoTip } from "./InfoTip";
 
 // Read semantic color tokens from the DOM so charts follow the active theme.
 // Re-reads whenever the .dark class on <html> changes.
@@ -120,11 +122,14 @@ function EmptyState({ msg }: { msg: string }) {
 export function ChartCard({
   title,
   action,
+  info,
   children,
   chartHeight,
 }: {
   title: string;
   action?: React.ReactNode;
+  /** Short definition shown in the top-right 'i' info tip. */
+  info?: string;
   children: React.ReactNode;
   /** Height of the chart area in px. Defaults to 256 (h-64). */
   chartHeight?: number;
@@ -161,7 +166,10 @@ export function ChartCard({
             {title}
           </h3>
         </div>
-        {action}
+        <div className="flex items-center gap-2">
+          {action}
+          {info && <InfoTip text={info} />}
+        </div>
       </div>
       <div className="grow" style={{ height: `${height}px` }}>{children}</div>
     </div>
@@ -169,7 +177,7 @@ export function ChartCard({
 }
 
 
-export function TrendLine({ data, linkByDay }: { data: { day: string; count: number }[]; linkByDay?: boolean }) {
+export function TrendLine({ data, linkByDay, showValues }: { data: { day: string; count: number }[]; linkByDay?: boolean; showValues?: boolean }) {
   const t = useTokens();
   const nav = useQueueNav();
   if (!data.length) return <EmptyState msg="No tickets in this range." />;
@@ -201,15 +209,19 @@ export function TrendLine({ data, linkByDay }: { data: { day: string; count: num
           stroke={lineColor}
           strokeWidth={2.5}
           fill="url(#trendFill)"
-          dot={false}
+          dot={showValues ? { r: 2.5, strokeWidth: 0, fill: lineColor } : false}
           activeDot={{ r: 4, strokeWidth: 0, fill: lineColor }}
-        />
+        >
+          {showValues && (
+            <LabelList dataKey="count" position="top" style={{ fontSize: 10, fontWeight: 600, fill: t.fg }} />
+          )}
+        </Area>
       </AreaChart>
     </ResponsiveContainer>
   );
 }
 
-export function StatusPie({ data, linkParam }: { data: { name: string; value: number }[]; linkParam?: string }) {
+export function StatusPie({ data, linkParam, showValues }: { data: { name: string; value: number }[]; linkParam?: string; showValues?: boolean }) {
   const total = data.reduce((s, d) => s + d.value, 0);
   const nav = useQueueNav();
   if (!total) return <EmptyState msg="No tickets to break down." />;
@@ -238,6 +250,8 @@ export function StatusPie({ data, linkParam }: { data: { name: string; value: nu
               outerRadius={106}
               paddingAngle={3}
               stroke="none"
+              label={showValues ? (p: { value?: number }) => `${p.value}` : undefined}
+              labelLine={showValues ? false : undefined}
               onClick={linkParam ? (d: { name?: string }) => d?.name && nav({ [linkParam]: d.name }) : undefined}
               style={linkParam ? { cursor: "pointer" } : undefined}
             >
@@ -326,9 +340,11 @@ export function StatusPie({ data, linkParam }: { data: { name: string; value: nu
 export function AgentBars({
   data,
   linkValueMap,
+  showValues,
 }: {
   data: { agent: string; count: number }[];
   linkValueMap?: Record<string, string>;
+  showValues?: boolean;
 }) {
   const t = useTokens();
   const nav = useQueueNav();
@@ -352,7 +368,9 @@ export function AgentBars({
         <XAxis type="number" tick={{ fontSize: 11, fill: t.axis }} stroke={t.grid} allowDecimals={false} />
         <YAxis type="category" dataKey="agent" tick={<SingleLineTick fill={t.fg} fontSize={13} />} stroke={t.grid} width={140} interval={0} />
         <Tooltip content={<ChartTooltip />} cursor={{ fill: t.grid, opacity: 0.4 }} />
-        <Bar dataKey="count" name="Tickets" fill="url(#barGrad)" radius={[0, 6, 6, 0]} maxBarSize={22} onClick={onBar} style={onBar ? { cursor: "pointer" } : undefined} />
+        <Bar dataKey="count" name="Tickets" fill="url(#barGrad)" radius={[0, 6, 6, 0]} maxBarSize={22} onClick={onBar} style={onBar ? { cursor: "pointer" } : undefined}>
+          {showValues && <LabelList dataKey="count" position="right" style={{ fontSize: 11, fontWeight: 700, fill: t.fg }} />}
+        </Bar>
       </BarChart>
     </ResponsiveContainer>
   );
@@ -366,7 +384,7 @@ const FLOW_LEGEND = [
   { key: "closed",  label: "Outflow", fill: "#30D158", glow: "rgba(48,209,88,0.40)",  bg: "rgba(48,209,88,0.10)",  border: "rgba(48,209,88,0.25)"  },
 ];
 
-export function FlowTrend({ data, linkByDay }: { data: { day: string; created: number; closed: number }[]; linkByDay?: boolean }) {
+export function FlowTrend({ data, linkByDay, showValues }: { data: { day: string; created: number; closed: number }[]; linkByDay?: boolean; showValues?: boolean }) {
   const t = useTokens();
   const nav = useQueueNav();
   if (!data.length) return <EmptyState msg="No tickets in this range." />;
@@ -395,8 +413,12 @@ export function FlowTrend({ data, linkByDay }: { data: { day: string; created: n
             <XAxis dataKey="day" tick={{ fontSize: 11, fill: t.axis }} stroke={t.grid} tickLine={false} tickMargin={10} tickFormatter={formatDayTick} />
             <YAxis tick={{ fontSize: 11, fill: t.axis }} stroke={t.grid} tickLine={false} tickMargin={8} allowDecimals={false} width={44} />
             <Tooltip content={<ChartTooltip />} cursor={{ stroke: t.grid }} />
-            <Area type="monotone" dataKey="created" name="Inflow"  stroke="#0A84FF" strokeWidth={2.5} fill="url(#flowCreated)" dot={false} activeDot={{ r: 4, strokeWidth: 0, fill: "#0A84FF" }} />
-            <Area type="monotone" dataKey="closed"  name="Outflow" stroke="#30D158" strokeWidth={2.5} fill="url(#flowClosed)"   dot={false} activeDot={{ r: 4, strokeWidth: 0, fill: "#30D158" }} />
+            <Area type="monotone" dataKey="created" name="Inflow"  stroke="#0A84FF" strokeWidth={2.5} fill="url(#flowCreated)" dot={showValues ? { r: 2.5, strokeWidth: 0, fill: "#0A84FF" } : false} activeDot={{ r: 4, strokeWidth: 0, fill: "#0A84FF" }}>
+              {showValues && <LabelList dataKey="created" position="top" style={{ fontSize: 10, fontWeight: 600, fill: "#0A84FF" }} />}
+            </Area>
+            <Area type="monotone" dataKey="closed"  name="Outflow" stroke="#30D158" strokeWidth={2.5} fill="url(#flowClosed)"   dot={showValues ? { r: 2.5, strokeWidth: 0, fill: "#30D158" } : false} activeDot={{ r: 4, strokeWidth: 0, fill: "#30D158" }}>
+              {showValues && <LabelList dataKey="closed" position="bottom" style={{ fontSize: 10, fontWeight: 600, fill: "#30D158" }} />}
+            </Area>
           </AreaChart>
         </ResponsiveContainer>
       </div>
@@ -456,6 +478,7 @@ export function BucketBars({
   linkParam,
   linkValueMap,
   extraParams,
+  showValues,
 }: {
   data: { label: string; count: number }[];
   emptyMsg?: string;
@@ -466,6 +489,7 @@ export function BucketBars({
   linkValueMap?: Record<string, string>;
   /** Extra params always set on click (e.g. aging adds status=open). */
   extraParams?: Record<string, string>;
+  showValues?: boolean;
 }) {
   const t = useTokens();
   const nav = useQueueNav();
@@ -491,7 +515,9 @@ export function BucketBars({
         <XAxis type="number" tick={{ fontSize: 11, fill: t.axis }} stroke={t.grid} allowDecimals={false} />
         <YAxis type="category" dataKey="label" tick={<SingleLineTick fill={t.fg} />} stroke={t.grid} width={labelWidth} interval={0} />
         <Tooltip content={<ChartTooltip />} cursor={{ fill: t.grid, opacity: 0.4 }} />
-        <Bar dataKey="count" name="Tickets" fill="url(#bucketGrad)" radius={[0, 6, 6, 0]} maxBarSize={22} onClick={onBar} style={onBar ? { cursor: "pointer" } : undefined} />
+        <Bar dataKey="count" name="Tickets" fill="url(#bucketGrad)" radius={[0, 6, 6, 0]} maxBarSize={22} onClick={onBar} style={onBar ? { cursor: "pointer" } : undefined}>
+          {showValues && <LabelList dataKey="count" position="right" style={{ fontSize: 11, fontWeight: 700, fill: t.fg }} />}
+        </Bar>
       </BarChart>
     </ResponsiveContainer>
   );
@@ -505,12 +531,14 @@ export function DonutBreakdown({
   palette,
   emptyMsg = "No data to break down.",
   linkParam,
+  showValues,
 }: {
   data: { name: string; value: number }[];
   palette: Record<string, DonutSlice>;
   emptyMsg?: string;
   /** URL param this donut maps to (e.g. "priority", "sentiment"). Slice value is lowercased. */
   linkParam?: string;
+  showValues?: boolean;
 }) {
   const total = data.reduce((s, d) => s + d.value, 0);
   const nav = useQueueNav();
@@ -542,6 +570,8 @@ export function DonutBreakdown({
               outerRadius={106}
               paddingAngle={3}
               stroke="none"
+              label={showValues ? (p: { value?: number }) => `${p.value}` : undefined}
+              labelLine={showValues ? false : undefined}
               onClick={linkParam ? (d: { name?: string }) => d?.name && go(d.name) : undefined}
               style={linkParam ? { cursor: "pointer" } : undefined}
             >
