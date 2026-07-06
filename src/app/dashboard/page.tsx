@@ -183,9 +183,9 @@ export default async function DashboardPage({
           </div>
         </div>
 
-        {/* Top bar: date filters + PDF export on the left, AI health status banner
-            filling the previously-empty right side. */}
-        <div className="flex flex-col gap-3 lg:flex-row lg:items-stretch">
+        {/* Top bar: date filters + PDF export on the left (compact, top-aligned so
+            the pickers don't float), AI health status banner filling the rest. */}
+        <div className="flex flex-col gap-3 lg:flex-row lg:items-start">
           <Filters
             agents={agents.map((a) => ({ id: encodeAgentId(a.id), name: a.name }))}
             showFacets={false}
@@ -264,34 +264,32 @@ export default async function DashboardPage({
                   <AgentBars data={byAgent.map((r) => ({ agent: r.agent, count: Number(r.count) }))} linkValueMap={agentOwnerMap} />
                 </ChartCard>
                 <div className="card p-5">
-                  <div className="mb-4 flex items-center justify-between">
-                    <div className="flex items-center gap-2">
-                      <span
-                        aria-hidden
-                        style={{
-                          display: "inline-block",
-                          width: "10px",
-                          height: "10px",
-                          borderRadius: "3px",
-                          background: "linear-gradient(135deg,#30D158,#00C7BE)",
-                          boxShadow: "0 2px 6px rgba(48,209,88,0.45)",
-                          flexShrink: 0,
-                        }}
-                      />
-                      <h3
-                        style={{
-                          fontSize: "11px",
-                          fontWeight: 700,
-                          letterSpacing: "0.14em",
-                          textTransform: "uppercase",
-                          color: "rgb(var(--fg))",
-                          fontFamily:
-                            "-apple-system,BlinkMacSystemFont,'SF Pro Display','Helvetica Neue',Arial,sans-serif",
-                        }}
-                      >
-                        Agent performance
-                      </h3>
-                    </div>
+                  <div className="mb-4 flex items-center gap-2">
+                    <span
+                      aria-hidden
+                      style={{
+                        display: "inline-block",
+                        width: "10px",
+                        height: "10px",
+                        borderRadius: "3px",
+                        background: "linear-gradient(135deg,#30D158,#00C7BE)",
+                        boxShadow: "0 2px 6px rgba(48,209,88,0.45)",
+                        flexShrink: 0,
+                      }}
+                    />
+                    <h3
+                      style={{
+                        fontSize: "11px",
+                        fontWeight: 700,
+                        letterSpacing: "0.14em",
+                        textTransform: "uppercase",
+                        color: "rgb(var(--fg))",
+                        fontFamily:
+                          "-apple-system,BlinkMacSystemFont,'SF Pro Display','Helvetica Neue',Arial,sans-serif",
+                      }}
+                    >
+                      Agent performance
+                    </h3>
                     <InfoTip text={VISUAL_INFO.agent_performance} />
                   </div>
                   {/* CSS-grid layout — proportional fr columns, guaranteed alignment */}
@@ -363,7 +361,7 @@ export default async function DashboardPage({
 
         {/* Root-cause: intent · sentiment */}
         <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
-          <ChartCard title="Intent mix" info={VISUAL_INFO.intent_mix}>
+          <ChartCard title="Intent mix" chartHeight={Math.max(256, intent.length * 40)} info={VISUAL_INFO.intent_mix}>
             <BucketBars
               data={intent.map((r) => ({ label: titleCase(r.intent) ?? r.intent, count: Number(r.count) }))}
               emptyMsg="No AI intent data."

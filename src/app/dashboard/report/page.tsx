@@ -193,7 +193,7 @@ export default async function DashboardReportPage({
           <ChartCard title="Tickets by agent" chartHeight={Math.max(256, byAgent.length * 44)}>
             <AgentBars data={byAgent.map((r) => ({ agent: r.agent, count: Number(r.count) }))} showValues />
           </ChartCard>
-          <ChartCard title="Intent mix">
+          <ChartCard title="Intent mix" chartHeight={Math.max(256, intent.length * 40)}>
             <BucketBars
               data={intent.map((r) => ({ label: titleCase(r.intent) ?? r.intent, count: Number(r.count) }))}
               emptyMsg="No AI intent data."

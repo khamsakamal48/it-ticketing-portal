@@ -298,6 +298,21 @@ body > * {
    artifacts), and give gradient-clipped text a solid color (otherwise it prints
    as black boxes). Scoped to .report-root so the live app is untouched, and
    duplicated under @media print for the actual print pipeline. */
+/* Force LIGHT tokens inside the report regardless of the app's dark default, so
+   card surfaces / text / borders print light even if <html>.dark lingers a frame
+   (ReportReady also strips .dark for the token-reading charts). */
+.report-root {
+  --bg: 245 247 251;
+  --surface: 255 255 255;
+  --surface-2: 244 245 247;
+  --surface-3: 237 238 241;
+  --border: 228 229 234;
+  --border-strong: 213 214 220;
+  --fg: 11 18 32;
+  --muted: 91 100 115;
+  --subtle: 154 163 178;
+  background: #ffffff !important;
+}
 .report-root,
 .report-root * {
   -webkit-print-color-adjust: exact !important;

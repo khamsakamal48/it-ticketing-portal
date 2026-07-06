@@ -35,22 +35,22 @@ export function DailyStatusBanner({
       className="card relative flex flex-1 flex-col justify-center p-4"
       style={sev ? { borderColor: sev.border } : undefined}
     >
-      {/* Header row: AI label + severity pill, with the info 'i' at top-right */}
-      <div className="mb-2 flex items-center justify-between gap-2">
-        <div className="flex items-center gap-2">
-          <Sparkles size={13} style={{ color: "rgb(var(--subtle))" }} />
-          <span
-            style={{
-              fontSize: "10px",
-              fontWeight: 700,
-              letterSpacing: "0.16em",
-              textTransform: "uppercase",
-              color: "rgb(var(--subtle))",
-            }}
-          >
-            AI IT Health Status
-          </span>
-          {sev && (
+      {/* Header row: AI label (with info 'i' next to it) + severity pill */}
+      <div className="mb-2 flex items-center gap-2">
+        <Sparkles size={13} style={{ color: "rgb(var(--subtle))" }} />
+        <span
+          style={{
+            fontSize: "10px",
+            fontWeight: 700,
+            letterSpacing: "0.16em",
+            textTransform: "uppercase",
+            color: "rgb(var(--subtle))",
+          }}
+        >
+          IT Health Status (AI Generated)
+        </span>
+        {info && <InfoTip text={info} />}
+        {sev && (
             <span
               style={{
                 display: "inline-flex",
@@ -79,8 +79,6 @@ export function DailyStatusBanner({
               {sev.label}
             </span>
           )}
-        </div>
-        {info && <InfoTip text={info} />}
       </div>
 
       {/* Summary: bold headline (first line) + explanatory body (rest). */}
@@ -98,11 +96,10 @@ export function DailyStatusBanner({
                 <p
                   className="mt-1"
                   style={{
-                    fontSize: "13px",
+                    fontSize: "13.5px",
                     lineHeight: 1.5,
                     color: "rgb(var(--muted))",
                     whiteSpace: "pre-line",
-                    maxWidth: "78ch",
                   }}
                 >
                   {body}

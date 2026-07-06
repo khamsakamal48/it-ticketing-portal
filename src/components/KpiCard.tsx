@@ -89,40 +89,40 @@ export function KpiCard({
         }}
       />
 
-      {/* Label row + icon */}
+      {/* Label row: title + info tip on the left, accent icon top-right */}
       <div className="relative flex items-start justify-between gap-2">
-        <span
-          className="leading-none"
-          style={{
-            fontSize: "10px",
-            fontWeight: 900,
-            letterSpacing: "0.14em",
-            textTransform: "uppercase",
-            color: "#ffffff",
-            textShadow: "0 1px 4px rgba(0,0,0,0.35)",
-          }}
-        >
-          {label}
-        </span>
-
-        <span className="flex shrink-0 items-center gap-1.5">
-          {Icon && (
-            <span
-              className="flex shrink-0 items-center justify-center"
-              style={{
-                width: hero ? "30px" : "26px",
-                height: hero ? "30px" : "26px",
-                borderRadius: "10px",
-                background: "rgba(255,255,255,0.20)",
-                border: "1px solid rgba(255,255,255,0.28)",
-                color: "#ffffff",
-              }}
-            >
-              <Icon size={hero ? 15 : 13} />
-            </span>
-          )}
+        <span className="flex items-center gap-1.5">
+          <span
+            className="leading-none"
+            style={{
+              fontSize: "10px",
+              fontWeight: 900,
+              letterSpacing: "0.14em",
+              textTransform: "uppercase",
+              color: "#ffffff",
+              textShadow: "0 1px 4px rgba(0,0,0,0.35)",
+            }}
+          >
+            {label}
+          </span>
           {info && <InfoTip text={info} tone="light" size={12} />}
         </span>
+
+        {Icon && (
+          <span
+            className="flex shrink-0 items-center justify-center"
+            style={{
+              width: hero ? "30px" : "26px",
+              height: hero ? "30px" : "26px",
+              borderRadius: "10px",
+              background: "rgba(255,255,255,0.20)",
+              border: "1px solid rgba(255,255,255,0.28)",
+              color: "#ffffff",
+            }}
+          >
+            <Icon size={hero ? 15 : 13} />
+          </span>
+        )}
       </div>
 
       {/* KPI value — 28px / 700 / -0.02em per skill spec */}

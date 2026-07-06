@@ -165,11 +165,9 @@ export function ChartCard({
           >
             {title}
           </h3>
-        </div>
-        <div className="flex items-center gap-2">
-          {action}
           {info && <InfoTip text={info} />}
         </div>
+        {action}
       </div>
       <div className="grow" style={{ height: `${height}px` }}>{children}</div>
     </div>

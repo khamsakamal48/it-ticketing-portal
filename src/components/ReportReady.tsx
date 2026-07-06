@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect } from "react";
+import { useEffect, useLayoutEffect } from "react";
 
 // Signals the headless-Chrome PDF renderer that the report has mounted and the
 // Recharts SVGs have had a frame to draw. Puppeteer waits on window.__CHARTS_READY.
@@ -11,6 +11,14 @@ declare global {
 }
 
 export function ReportReady() {
+  // The app defaults to DARK theme (`.dark` on <html>, set pre-paint). The PDF
+  // report must always render LIGHT, so strip it before the charts read tokens.
+  // useTokens() observes the html class attribute and re-reads on this change.
+  useLayoutEffect(() => {
+    document.documentElement.classList.remove("dark");
+    document.documentElement.classList.add("light");
+  }, []);
+
   useEffect(() => {
     // Two rAFs + a short timeout give Recharts' ResponsiveContainer time to
     // measure and render before we let Chrome snapshot the page.
