@@ -209,11 +209,8 @@ export function TrendLine({ data, linkByDay, showValues }: { data: { day: string
           fill="url(#trendFill)"
           dot={showValues ? { r: 2.5, strokeWidth: 0, fill: lineColor } : false}
           activeDot={{ r: 4, strokeWidth: 0, fill: lineColor }}
-        >
-          {showValues && (
-            <LabelList dataKey="count" position="top" style={{ fontSize: 10, fontWeight: 600, fill: t.fg }} />
-          )}
-        </Area>
+          label={showValues ? { position: "top", fill: "#0B1220", fontSize: 11, offset: 10 } : undefined}
+        />
       </AreaChart>
     </ResponsiveContainer>
   );
@@ -246,7 +243,7 @@ export function StatusPie({ data, linkParam, showValues }: { data: { name: strin
               cy="50%"
               innerRadius={74}
               outerRadius={106}
-              paddingAngle={3}
+              paddingAngle={showValues ? 0 : 3}
               stroke="none"
               label={showValues ? (p: { value?: number }) => `${p.value}` : undefined}
               labelLine={showValues ? false : undefined}
@@ -412,12 +409,8 @@ export function FlowTrend({ data, linkByDay, showValues }: { data: { day: string
             <XAxis dataKey="day" tick={{ fontSize: 11, fill: t.axis }} stroke={t.grid} tickLine={false} tickMargin={10} tickFormatter={formatDayTick} />
             <YAxis tick={{ fontSize: 11, fill: t.axis }} stroke={t.grid} tickLine={false} tickMargin={8} allowDecimals={false} width={44} />
             <Tooltip content={<ChartTooltip />} cursor={{ stroke: t.grid }} />
-            <Area type="monotone" dataKey="created" name="Inflow"  stroke="#0A84FF" strokeWidth={2.5} fill="url(#flowCreated)" dot={showValues ? { r: 2.5, strokeWidth: 0, fill: "#0A84FF" } : false} activeDot={{ r: 4, strokeWidth: 0, fill: "#0A84FF" }}>
-              {showValues && <LabelList dataKey="created" position="top" style={{ fontSize: 10, fontWeight: 600, fill: "#0A84FF" }} />}
-            </Area>
-            <Area type="monotone" dataKey="closed"  name="Outflow" stroke="#30D158" strokeWidth={2.5} fill="url(#flowClosed)"   dot={showValues ? { r: 2.5, strokeWidth: 0, fill: "#30D158" } : false} activeDot={{ r: 4, strokeWidth: 0, fill: "#30D158" }}>
-              {showValues && <LabelList dataKey="closed" position="bottom" style={{ fontSize: 10, fontWeight: 600, fill: "#30D158" }} />}
-            </Area>
+            <Area type="monotone" dataKey="created" name="Inflow"  stroke="#0A84FF" strokeWidth={2.5} fill="url(#flowCreated)" dot={showValues ? { r: 2.5, strokeWidth: 0, fill: "#0A84FF" } : false} activeDot={{ r: 4, strokeWidth: 0, fill: "#0A84FF" }} label={showValues ? { position: "top", fill: "#0A6DD1", fontSize: 11, offset: 10 } : undefined} />
+            <Area type="monotone" dataKey="closed"  name="Outflow" stroke="#30D158" strokeWidth={2.5} fill="url(#flowClosed)"   dot={showValues ? { r: 2.5, strokeWidth: 0, fill: "#30D158" } : false} activeDot={{ r: 4, strokeWidth: 0, fill: "#30D158" }} label={showValues ? { position: "bottom", fill: "#1c8f3c", fontSize: 11, offset: 10 } : undefined} />
           </AreaChart>
         </ResponsiveContainer>
       </div>
@@ -567,7 +560,7 @@ export function DonutBreakdown({
               cy="50%"
               innerRadius={74}
               outerRadius={106}
-              paddingAngle={3}
+              paddingAngle={showValues ? 0 : 3}
               stroke="none"
               label={showValues ? (p: { value?: number }) => `${p.value}` : undefined}
               labelLine={showValues ? false : undefined}
