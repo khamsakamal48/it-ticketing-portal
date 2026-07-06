@@ -20,8 +20,12 @@ export async function GET(req: NextRequest) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
 
-  // Base URL Chrome should hit. Prefer explicit APP_URL, else the request origin.
-  const base = process.env.APP_URL?.replace(/\/$/, "") || req.nextUrl.origin;
+  // Base URL Chrome should hit. Prefer explicit APP_URL; otherwise hit the local
+  // Next server over plain HTTP on the internal port. Do NOT use req.nextUrl.origin
+  // — behind a TLS proxy that resolves to https://0.0.0.0:PORT, which Chrome inside
+  // the container can't reach (ERR_SSL_PROTOCOL_ERROR on a plaintext port).
+  const base =
+    process.env.APP_URL?.replace(/\/$/, "") || `http://127.0.0.1:${process.env.PORT || 3000}`;
 
   // Carry the dashboard's current date range onto the report, plus the token.
   const params = new URLSearchParams(req.nextUrl.searchParams);

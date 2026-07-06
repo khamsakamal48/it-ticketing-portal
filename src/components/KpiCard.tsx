@@ -106,7 +106,6 @@ export function KpiCard({
         </span>
 
         <span className="flex shrink-0 items-center gap-1.5">
-          {info && <InfoTip text={info} tone="light" size={14} />}
           {Icon && (
             <span
               className="flex shrink-0 items-center justify-center"
@@ -122,6 +121,7 @@ export function KpiCard({
               <Icon size={hero ? 15 : 13} />
             </span>
           )}
+          {info && <InfoTip text={info} tone="light" size={12} />}
         </span>
       </div>
 

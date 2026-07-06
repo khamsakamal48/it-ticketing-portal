@@ -83,14 +83,34 @@ export function DailyStatusBanner({
         {info && <InfoTip text={info} />}
       </div>
 
-      {/* Two-line summary */}
+      {/* Summary: bold headline (first line) + explanatory body (rest). */}
       {status ? (
-        <p
-          className="leading-snug"
-          style={{ fontSize: "14px", fontWeight: 500, color: "rgb(var(--fg))" }}
-        >
-          {status.summary}
-        </p>
+        (() => {
+          const nl = status.summary.indexOf("\n");
+          const headline = nl >= 0 ? status.summary.slice(0, nl).trim() : status.summary.trim();
+          const body = nl >= 0 ? status.summary.slice(nl + 1).trim() : "";
+          return (
+            <>
+              <p style={{ fontSize: "16px", fontWeight: 650, lineHeight: 1.3, color: "rgb(var(--fg))" }}>
+                {headline}
+              </p>
+              {body && (
+                <p
+                  className="mt-1"
+                  style={{
+                    fontSize: "13px",
+                    lineHeight: 1.5,
+                    color: "rgb(var(--muted))",
+                    whiteSpace: "pre-line",
+                    maxWidth: "78ch",
+                  }}
+                >
+                  {body}
+                </p>
+              )}
+            </>
+          );
+        })()
       ) : (
         <p className="leading-snug" style={{ fontSize: "13px", color: "rgb(var(--subtle))" }}>
           The daily AI health summary hasn&apos;t been generated yet. It refreshes each morning.
@@ -98,7 +118,7 @@ export function DailyStatusBanner({
       )}
 
       {status && (
-        <p className="mt-1.5" style={{ fontSize: "11px", color: "rgb(var(--subtle))" }}>
+        <p className="mt-2" style={{ fontSize: "11px", color: "rgb(var(--subtle))" }}>
           Updated {fmtRelativeIST(status.generated_at)}
         </p>
       )}
