@@ -255,7 +255,8 @@ export function StatusPie({ data, linkParam, showValues }: { data: { name: strin
             >
               {data.map((d, i) => {
                 const c = SKILL_STATUS_COLORS[d.name] ?? SKILL_FALLBACK;
-                return <Cell key={i} fill={c.fill} filter={`url(#glow-${d.name})`} />;
+                // Glow halo looks fuzzy in the PDF export — drop it when showValues.
+                return <Cell key={i} fill={c.fill} filter={showValues ? undefined : `url(#glow-${d.name})`} />;
               })}
             </Pie>
             <Tooltip content={<ChartTooltip />} />
@@ -575,7 +576,8 @@ export function DonutBreakdown({
             >
               {data.map((d, i) => {
                 const c = colorFor(d.name);
-                return <Cell key={i} fill={c.fill} filter={`url(#donut-glow-${d.name})`} />;
+                // Glow halo looks fuzzy in the PDF export — drop it when showValues.
+                return <Cell key={i} fill={c.fill} filter={showValues ? undefined : `url(#donut-glow-${d.name})`} />;
               })}
             </Pie>
             <Tooltip content={<ChartTooltip />} />

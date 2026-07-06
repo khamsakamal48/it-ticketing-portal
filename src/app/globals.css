@@ -318,6 +318,17 @@ body > * {
   -webkit-print-color-adjust: exact !important;
   print-color-adjust: exact !important;
 }
+/* Flatten decorative depth for a crisp presentation/PPT export: kill all
+   box-shadows/glows and the KPI radial sheen, keep flat solid colors. */
+.report-root *,
+.report-root *::before,
+.report-root *::after {
+  box-shadow: none !important;
+  text-shadow: none !important;
+}
+.report-root .kpi-sheen {
+  display: none !important;
+}
 .report-root .text-gradient {
   /* Solid fallback — background-clip:text renders as black boxes in Chrome PDF. */
   background-image: none !important;

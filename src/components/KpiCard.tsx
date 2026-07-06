@@ -80,7 +80,7 @@ export function KpiCard({
       {/* Radial sheen overlay — mix-blend-mode:overlay (leadership-deck spec) */}
       <span
         aria-hidden
-        className="pointer-events-none absolute inset-0"
+        className="kpi-sheen pointer-events-none absolute inset-0"
         style={{
           background:
             "radial-gradient(ellipse at 30% 20%, rgba(255,255,255,0.38) 0%, transparent 62%)",
