@@ -101,11 +101,13 @@ function NavLinks({
 // carries the (server-rendered) user block + sign-out form.
 export function NavShell({
   active,
+  topbar,
   footer,
   footerCollapsed,
   children,
 }: {
   active: string;
+  topbar?: React.ReactNode;
   footer: React.ReactNode;
   footerCollapsed?: React.ReactNode;
   children: React.ReactNode;
@@ -199,7 +201,10 @@ export function NavShell({
             </span>
             <h1 className="hidden text-sm font-semibold text-fg md:block">{title}</h1>
           </div>
-          <ThemeToggle />
+          <div className="flex items-center gap-2">
+            {topbar}
+            <ThemeToggle />
+          </div>
         </header>
 
         <main className="w-full flex-1 px-4 py-6 sm:px-6 sm:py-8">{children}</main>

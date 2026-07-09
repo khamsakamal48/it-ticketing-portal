@@ -44,6 +44,20 @@ export default async function TicketDetail({ params }: { params: Promise<{ slug:
   // so a backdate is obvious without opening the audit trail.
   const dateCorrected = audit.some((a) => a.action === "original_date_change");
 
+  // Audit trail shows raw column names/ids; humanize owner changes into agent
+  // name (email). Falls back to the raw value for unknown/removed agents.
+  const agentLabel = (id: string | null) => {
+    if (!id) return null;
+    const a = agents.find((x) => String(x.id) === id);
+    return a ? `${a.name} (${a.email})` : `#${id}`;
+  };
+  const auditField = (a: (typeof audit)[number]) => {
+    if (a.field === "ticket_owner_id") {
+      return { label: "owner", old: agentLabel(a.old_value) ?? "Unassigned", new: agentLabel(a.new_value) ?? "Unassigned" };
+    }
+    return { label: a.field, old: a.old_value ?? "∅", new: a.new_value ?? "∅" };
+  };
+
   // Cumulative hold time (subtracted from resolution). Include any still-open hold
   // span so an in-progress hold is reflected too.
   const openHoldSeconds = ticket.on_hold_since
@@ -140,7 +154,9 @@ export default async function TicketDetail({ params }: { params: Promise<{ slug:
                 <p className="text-sm text-subtle">No portal changes yet.</p>
               ) : (
                 <ol className="relative space-y-4 border-l border-border pl-5">
-                  {audit.map((a) => (
+                  {audit.map((a) => {
+                    const f = auditField(a);
+                    return (
                     <li key={a.id} className="relative">
                       <span className="absolute -left-[1.4rem] top-1 h-2 w-2 rounded-full bg-brand/70 ring-4 ring-surface" />
                       <div className="flex items-start justify-between gap-3">
@@ -148,7 +164,7 @@ export default async function TicketDetail({ params }: { params: Promise<{ slug:
                           <span className="font-medium capitalize text-fg">{a.action.replace(/_/g, " ")}</span>
                           {a.field && (
                             <span className="text-muted">
-                              {" "}— {a.field}: {a.old_value ?? "∅"} → {a.new_value ?? "∅"}
+                              {" "}— {f.label}: {f.old} → {f.new}
                             </span>
                           )}
                           <div className="mt-0.5 text-xs text-subtle">{a.actor_email}</div>
@@ -156,7 +172,8 @@ export default async function TicketDetail({ params }: { params: Promise<{ slug:
                         <span className="tabular whitespace-nowrap text-xs text-subtle">{fmtIST(a.created_at)}</span>
                       </div>
                     </li>
-                  ))}
+                    );
+                  })}
                 </ol>
               )}
             </div>

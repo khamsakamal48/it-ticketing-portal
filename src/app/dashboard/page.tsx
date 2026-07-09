@@ -12,7 +12,7 @@ import {
   PRIORITY_PALETTE,
   SENTIMENT_PALETTE,
 } from "@/components/charts";
-import { Filters } from "@/components/Filters";
+import { DashboardTopControls } from "@/components/DashboardTopControls";
 import { InfoTip } from "@/components/InfoTip";
 import { DailyStatusBanner } from "@/components/DailyStatusBanner";
 import { parseFilters } from "@/lib/filters";
@@ -36,7 +36,6 @@ import {
   getStatusBreakdown,
   getVolumeTrend,
   getByAgent,
-  getActiveAgents,
   getFlowTrend,
   getAgingBuckets,
   getResponseMetrics,
@@ -70,7 +69,6 @@ export default async function DashboardPage({
     status,
     trend,
     byAgent,
-    agents,
     flow,
     aging,
     response,
@@ -87,7 +85,6 @@ export default async function DashboardPage({
     getStatusBreakdown(f),
     getVolumeTrend(f),
     getByAgent(f),
-    getActiveAgents(),
     getFlowTrend(f),
     getAgingBuckets(f),
     getResponseMetrics(f, slaFirstResponseHours),
@@ -149,7 +146,7 @@ export default async function DashboardPage({
   const requesterValueMap = Object.fromEntries(requesters.map((r) => [r.name, r.email]));
 
   return (
-    <AppShell active="/dashboard">
+    <AppShell active="/dashboard" topbar={<DashboardTopControls />}>
       <div className="animate-rise-in space-y-6">
         <div className="flex flex-wrap items-end justify-between gap-3">
           <div>
@@ -183,16 +180,9 @@ export default async function DashboardPage({
           </div>
         </div>
 
-        {/* Top bar: date filters + PDF export on the left (compact, top-aligned so
-            the pickers don't float), AI health status banner filling the rest. */}
-        <div className="flex flex-col gap-3 lg:flex-row lg:items-start">
-          <Filters
-            agents={agents.map((a) => ({ id: encodeAgentId(a.id), name: a.name }))}
-            showFacets={false}
-            showPdf
-          />
-          <DailyStatusBanner status={dailyStatus} info={VISUAL_INFO.daily_status} />
-        </div>
+        {/* Date range + PDF export now live in the sticky top bar (see
+            DashboardTopControls), so the AI health banner spans full width. */}
+        <DailyStatusBanner status={dailyStatus} info={VISUAL_INFO.daily_status} />
 
         {/* ───────────────── Ticket overview ───────────────── */}
         <div className="pt-2">

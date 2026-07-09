@@ -5,9 +5,11 @@ import { NavShell } from "./NavShell";
 
 export default async function AppShell({
   active,
+  topbar,
   children,
 }: {
   active: string;
+  topbar?: React.ReactNode;
   children: React.ReactNode;
 }) {
   const session = await auth();
@@ -79,7 +81,7 @@ export default async function AppShell({
   );
 
   return (
-    <NavShell active={active} footer={footer} footerCollapsed={footerCollapsed}>
+    <NavShell active={active} topbar={topbar} footer={footer} footerCollapsed={footerCollapsed}>
       {children}
     </NavShell>
   );
