@@ -51,9 +51,18 @@ export default async function TicketDetail({ params }: { params: Promise<{ slug:
     const a = agents.find((x) => String(x.id) === id);
     return a ? `${a.name} (${a.email})` : `#${id}`;
   };
+  const contactLabel = (id: string | null) => {
+    if (!id) return null;
+    const c = contacts.find((x) => String(x.id) === id);
+    if (!c) return `#${id}`;
+    return c.name ? `${c.name} (${c.email})` : c.email;
+  };
   const auditField = (a: (typeof audit)[number]) => {
     if (a.field === "ticket_owner_id") {
       return { label: "owner", old: agentLabel(a.old_value) ?? "Unassigned", new: agentLabel(a.new_value) ?? "Unassigned" };
+    }
+    if (a.field === "contact_id") {
+      return { label: "requester", old: contactLabel(a.old_value) ?? "∅", new: contactLabel(a.new_value) ?? "∅" };
     }
     return { label: a.field, old: a.old_value ?? "∅", new: a.new_value ?? "∅" };
   };
