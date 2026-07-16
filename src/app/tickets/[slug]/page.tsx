@@ -21,10 +21,24 @@ import { parseForwardedOriginal } from "@/lib/forwarded-email";
 
 export const dynamic = "force-dynamic";
 
-export default async function TicketDetail({ params }: { params: Promise<{ slug: string }> }) {
+export default async function TicketDetail({
+  params,
+  searchParams,
+}: {
+  params: Promise<{ slug: string }>;
+  searchParams: Promise<{ back?: string | string[] }>;
+}) {
   const { slug } = await params;
   const ticketId = decodeTicketId(slug);
   if (ticketId === null) notFound();
+
+  // `back` carries the queue's querystring so filters survive the round trip.
+  // Re-parsed through URLSearchParams — it can only ever become query params.
+  const backRaw = (await searchParams).back;
+  const backQs = new URLSearchParams(
+    Array.isArray(backRaw) ? backRaw[0] : backRaw ?? ""
+  ).toString();
+  const backHref = backQs ? `/tickets?${backQs}` : "/tickets";
 
   const ticket = await getTicket(ticketId);
   if (!ticket) notFound();
@@ -81,7 +95,7 @@ export default async function TicketDetail({ params }: { params: Promise<{ slug:
     <AppShell active="/tickets">
       <div className="animate-rise-in">
         <Link
-          href="/tickets"
+          href={backHref}
           className="mb-4 inline-flex items-center gap-1 text-sm text-subtle transition-colors hover:text-fg"
         >
           <ArrowLeft size={16} /> Back to tickets

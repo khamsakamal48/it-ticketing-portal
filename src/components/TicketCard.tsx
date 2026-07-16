@@ -30,7 +30,15 @@ function avatarFor(seed: string) {
 
 // Freshdesk-style card row. Display-only — edits live on the ticket detail page.
 // `slaHours` is the breach threshold (escalation SLA) the duration is checked against.
-export function TicketCard({ t, slaHours }: { t: TicketRow; slaHours: number }) {
+export function TicketCard({
+  t,
+  slaHours,
+  backTo = "",
+}: {
+  t: TicketRow;
+  slaHours: number;
+  backTo?: string; // encoded list querystring, round-tripped so Back keeps filters
+}) {
   const requester = t.contact_email ?? "Unknown requester";
   const initial = (requester[0] ?? "?").toUpperCase();
 
@@ -47,7 +55,7 @@ export function TicketCard({ t, slaHours }: { t: TicketRow; slaHours: number }) 
 
   return (
     <Link
-      href={`/tickets/${encodeTicketId(t.id)}`}
+      href={`/tickets/${encodeTicketId(t.id)}${backTo}`}
       className={`group relative flex items-start gap-4 overflow-hidden px-5 py-4
         before:absolute before:inset-y-0 before:left-0 before:w-1 before:content-['']
         ${ACCENT[t.status] ?? "before:bg-transparent"}

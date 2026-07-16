@@ -41,6 +41,15 @@ export default async function TicketsPage({
   const sort: Sort = SORTS.includes(one("sort") as Sort) ? (one("sort") as Sort) : "updated_at";
   const dir = one("dir") === "asc" ? "asc" : "desc";
 
+  // Round-trip the current list querystring through the detail page so its
+  // "Back to tickets" link restores filters/sort/page.
+  const listQs = new URLSearchParams(
+    Object.entries(sp).flatMap(([k, v]) =>
+      v === undefined ? [] : (Array.isArray(v) ? v : [v]).map((x) => [k, x] as [string, string])
+    )
+  ).toString();
+  const backTo = listQs ? `?back=${encodeURIComponent(listQs)}` : "";
+
   const [{ rows, total }, agents, slaRaw] = await Promise.all([
     listTickets(f, page, PAGE_SIZE, sort, dir),
     getActiveAgents(),
@@ -76,7 +85,7 @@ export default async function TicketsPage({
         ) : view === "card" ? (
           <div className="card divide-y divide-border overflow-hidden p-0">
             {rows.map((t) => (
-              <TicketCard key={t.id} t={t} slaHours={slaHours} />
+              <TicketCard key={t.id} t={t} slaHours={slaHours} backTo={backTo} />
             ))}
           </div>
         ) : (
@@ -103,7 +112,7 @@ export default async function TicketsPage({
                       <td className="px-4 py-3 font-mono text-xs text-subtle">{t.id}</td>
                       <td className="max-w-md px-4 py-3">
                         <Link
-                          href={`/tickets/${encodeTicketId(t.id)}`}
+                          href={`/tickets/${encodeTicketId(t.id)}${backTo}`}
                           className="font-medium text-fg underline-offset-2 transition-colors hover:text-brand hover:underline"
                         >
                           {t.subject || "(no subject)"}
