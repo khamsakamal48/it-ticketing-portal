@@ -54,6 +54,13 @@ CREATE TRIGGER trg_track_assignment
 -- wrote nothing, so a ticket never reassigned in the portal gets a single span
 -- starting at created_at -- i.e. its agent time equals the old lifetime figure.
 -- Accurate per-agent data only accrues from this migration forward.
+--
+-- Corollary: where n8n moved a ticket AFTER a portal reassign, the chain below
+-- ends at the wrong owner and the real current owner gets no span (prod: ticket
+-- #112 only). Such a ticket counts in the owner's Resolved but not their Avg h,
+-- and shows a phantom Handed off against the previous owner. Left uncorrected --
+-- the timestamp of the unlogged hop does not exist anywhere, and guessing it
+-- (e.g. from updated_at) would fabricate history. The trigger prevents recurrence.
 -- ---------------------------------------------------------------------------
 INSERT INTO ticket_assignments (ticket_id, user_id, assigned_at, ended_at)
 SELECT ticket_id, user_id, assigned_at,

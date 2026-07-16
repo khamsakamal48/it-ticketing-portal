@@ -284,23 +284,25 @@ export default async function DashboardPage({
                   </div>
                   {/* CSS-grid layout — proportional fr columns, guaranteed alignment */}
                   <div style={{ display: "flex", flexDirection: "column", fontSize: "13px" }}>
-                    <div style={{ display: "grid", gridTemplateColumns: "3fr 1.1fr 1.1fr 0.8fr 0.9fr", columnGap: "8px", fontSize: "10px", fontWeight: 600, textTransform: "uppercase", letterSpacing: "0.1em", color: "rgb(var(--subtle))", paddingBottom: "6px" }}>
+                    <div style={{ display: "grid", gridTemplateColumns: "2.2fr 1fr 0.9fr 0.8fr 0.9fr 1.1fr", columnGap: "8px", fontSize: "10px", fontWeight: 600, textTransform: "uppercase", letterSpacing: "0.1em", color: "rgb(var(--subtle))", paddingBottom: "6px" }}>
                       <span>Agent</span>
                       <span style={{ textAlign: "right" }}>Resolved</span>
                       <span style={{ textAlign: "right" }}>Avg h</span>
                       <span style={{ textAlign: "right" }}>Open</span>
                       <span style={{ textAlign: "right" }}>On hold</span>
+                      <span style={{ textAlign: "right" }}>Handed off</span>
                     </div>
                     {agentPerf.length === 0 && (
                       <p style={{ paddingTop: "12px", color: "rgb(var(--subtle))" }}>No tickets in range.</p>
                     )}
                     {agentPerf.map((r) => (
-                      <Link key={r.agent} href={queueHref({ owner: ownerValue(r.agent_id) })} style={{ display: "grid", gridTemplateColumns: "3fr 1.1fr 1.1fr 0.8fr 0.9fr", columnGap: "8px", borderTop: "1px solid rgb(var(--border) / 0.6)", paddingTop: "7px", paddingBottom: "7px", textDecoration: "none", cursor: "pointer" }} className="transition-colors hover:bg-surface-2">
+                      <Link key={r.agent} href={queueHref({ owner: ownerValue(r.agent_id) })} style={{ display: "grid", gridTemplateColumns: "2.2fr 1fr 0.9fr 0.8fr 0.9fr 1.1fr", columnGap: "8px", borderTop: "1px solid rgb(var(--border) / 0.6)", paddingTop: "7px", paddingBottom: "7px", textDecoration: "none", cursor: "pointer" }} className="transition-colors hover:bg-surface-2">
                         <span style={{ fontWeight: 500, color: "rgb(var(--fg))" }}>{r.agent}</span>
                         <span style={{ textAlign: "right", fontVariantNumeric: "tabular-nums", color: "rgb(var(--fg))" }}>{n(r.resolved)}</span>
                         <span style={{ textAlign: "right", fontVariantNumeric: "tabular-nums", color: "rgb(var(--muted))" }}>{r.avg_resolution_h != null ? n(r.avg_resolution_h).toFixed(1) : "—"}</span>
                         <span style={{ textAlign: "right", fontVariantNumeric: "tabular-nums", color: "rgb(var(--muted))" }}>{n(r.open_load)}</span>
                         <span style={{ textAlign: "right", fontVariantNumeric: "tabular-nums", color: "rgb(var(--muted))" }}>{n(r.on_hold_load)}</span>
+                        <span style={{ textAlign: "right", fontVariantNumeric: "tabular-nums", color: "rgb(var(--subtle))" }}>{n(r.handed_off) || "—"}</span>
                       </Link>
                     ))}
                   </div>
