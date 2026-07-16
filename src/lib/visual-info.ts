@@ -21,7 +21,7 @@ export const VISUAL_INFO: Record<string, string> = {
   ticket_volume: "New tickets created per day over the selected range. Click a day to drill in.",
   by_status: "How current tickets split across Open, Closed, On Hold, etc.",
   by_agent: "Number of tickets owned by each agent. Click a bar to see that agent's queue.",
-  agent_performance: "Per-agent resolved count, average resolution hours, and current open load.",
+  agent_performance: "Per-agent resolved count, plus current open and on-hold load. Avg h counts only the time a ticket was assigned to that agent (hold time excluded) — not its full lifetime, so inheriting an old ticket doesn't skew the average. The Avg Resolution KPI above still shows total time from creation to close.",
 
   // ── Charts: operational analytics ──
   inflow_outflow: "Tickets created (inflow) vs closed (outflow) per day. Gaps show backlog build-up.",

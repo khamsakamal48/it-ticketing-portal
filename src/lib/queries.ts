@@ -282,18 +282,42 @@ export async function getSentimentBreakdown(f: TicketFilters) {
   );
 }
 
-// Per-agent throughput + quality: resolved count, avg resolution h, open load.
+// Per-agent throughput + quality: resolved count, avg resolution h, open + on-hold load.
+//
+// avg_resolution_h measures only the time the ticket was in THAT agent's hands
+// (ticket_assignments spans, see db/006), not its lifetime -- otherwise inheriting
+// an old ticket tanks your average. Hold time is prorated across spans by span
+// length, since hold periods themselves aren't recorded per-owner.
+// The customer-facing lifetime figure lives in getKpis / getSlaCompliance and
+// deliberately still measures closed_at - created_at.
 export async function getAgentPerformance(f: TicketFilters) {
   const { clause, params } = buildWhere(f);
-  return query<{ agent: string; agent_id: number | null; resolved: string; avg_resolution_h: string | null; open_load: string }>(
-    `SELECT COALESCE(u.name, 'Unassigned') AS agent,
+  const and = clause ? `${clause} AND` : "WHERE";
+  return query<{ agent: string; agent_id: number | null; resolved: string; avg_resolution_h: string | null; open_load: string; on_hold_load: string }>(
+    `WITH ticket_spans AS (
+        SELECT a.user_id, a.ticket_id,
+               GREATEST(EXTRACT(EPOCH FROM (LEAST(COALESCE(a.ended_at, now()), t.closed_at) - a.assigned_at)), 0) AS span_s,
+               GREATEST(EXTRACT(EPOCH FROM (t.closed_at - t.created_at)), 1) AS life_s,
+               t.total_hold_seconds
+          FROM ticket_assignments a
+          JOIN tickets t ON t.id = a.ticket_id
+          ${and} t.status = 'closed' AND t.closed_at IS NOT NULL
+     ), per_ticket AS (
+        SELECT user_id, ticket_id,
+               GREATEST(SUM(span_s) - MAX(total_hold_seconds) * SUM(span_s) / MAX(life_s), 0) / 3600 AS agent_h
+          FROM ticket_spans GROUP BY user_id, ticket_id
+     ), per_agent AS (
+        SELECT user_id, AVG(agent_h) AS agent_hours FROM per_ticket GROUP BY user_id
+     )
+     SELECT COALESCE(u.name, 'Unassigned') AS agent,
             t.ticket_owner_id AS agent_id,
-            COUNT(*) FILTER (WHERE t.status = 'closed') AS resolved,
-            AVG(EXTRACT(EPOCH FROM (t.closed_at - t.created_at)) / 3600 - t.total_hold_seconds / 3600.0)
-              FILTER (WHERE t.status = 'closed' AND t.closed_at IS NOT NULL) AS avg_resolution_h,
-            COUNT(*) FILTER (WHERE t.status = 'open')   AS open_load
+            COUNT(*) FILTER (WHERE t.status = 'closed')  AS resolved,
+            MAX(pa.agent_hours)                          AS avg_resolution_h,
+            COUNT(*) FILTER (WHERE t.status = 'open')    AS open_load,
+            COUNT(*) FILTER (WHERE t.status = 'on_hold') AS on_hold_load
        FROM tickets t
        LEFT JOIN users u ON u.id = t.ticket_owner_id
+       LEFT JOIN per_agent pa ON pa.user_id = t.ticket_owner_id
        ${clause}
        GROUP BY u.name, t.ticket_owner_id ORDER BY resolved DESC`,
     params
