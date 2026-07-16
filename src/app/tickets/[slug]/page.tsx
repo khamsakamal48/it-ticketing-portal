@@ -4,11 +4,13 @@ import { ArrowLeft, Sparkles } from "lucide-react";
 import AppShell from "@/components/AppShell";
 import { StatusBadge, PriorityBadge } from "@/components/badges";
 import { TicketActions } from "@/components/TicketActions";
+import ResolutionBreakdown from "@/components/ResolutionBreakdown";
 import {
   getTicket,
   getTicketMessages,
   getTicketTags,
   getTicketAudit,
+  getTicketSpans,
   getActiveAgents,
   getContacts,
 } from "@/lib/queries";
@@ -27,10 +29,11 @@ export default async function TicketDetail({ params }: { params: Promise<{ slug:
   const ticket = await getTicket(ticketId);
   if (!ticket) notFound();
 
-  const [messages, tags, audit, agents, contacts] = await Promise.all([
+  const [messages, tags, audit, spans, agents, contacts] = await Promise.all([
     getTicketMessages(ticketId),
     getTicketTags(ticketId),
     getTicketAudit(ticketId),
+    getTicketSpans(ticketId),
     getActiveAgents(),
     getContacts(),
   ]);
@@ -204,20 +207,20 @@ export default async function TicketDetail({ params }: { params: Promise<{ slug:
               detectedOriginal={detectedOriginal}
             />
 
+            <ResolutionBreakdown
+              spans={spans.map((s) => ({ user_id: s.user_id, agent: s.agent, hours: Number(s.hours) }))}
+              createdAt={ticket.created_at}
+              closedAt={ticket.closed_at}
+              firstReplyAt={ticket.first_agent_reply_at}
+              holdHours={holdHours}
+              currentOwnerId={ticket.owner_id ?? null}
+            />
+
             <div className="card p-5 text-sm">
               <h3 className="mb-3 text-sm font-semibold text-fg">Details</h3>
               <dl className="space-y-2.5 text-muted">
                 <div className="flex justify-between gap-2"><dt className="text-subtle">Owner</dt><dd className="text-fg">{ticket.owner_name ?? "Unassigned"}</dd></div>
                 <div className="flex justify-between gap-2"><dt className="text-subtle">Escalation</dt><dd className="tabular text-fg">{ticket.escalation_level}</dd></div>
-                {holdHours > 0 && (
-                  <div className="flex justify-between gap-2">
-                    <dt className="text-subtle">On hold</dt>
-                    <dd className="tabular text-fg">
-                      {fmtDurationHours(holdHours)}
-                      <span className="text-subtle"> (excluded from SLA)</span>
-                    </dd>
-                  </div>
-                )}
                 <div className="flex justify-between gap-2"><dt className="text-subtle">Updated</dt><dd className="tabular text-fg">{fmtIST(ticket.updated_at)}</dd></div>
               </dl>
               {tags.length > 0 && (

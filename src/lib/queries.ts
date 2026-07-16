@@ -413,6 +413,8 @@ export async function getTicket(id: number) {
       turnaround_at: string | null;
       on_hold_since: string | null;
       total_hold_seconds: string | number | null;
+      closed_at: string | null;
+      first_agent_reply_at: string | null;
     }
   >(
     `SELECT t.id, t.subject, t.status, t.priority,
@@ -420,13 +422,30 @@ export async function getTicket(id: number) {
             c.email AS contact_email, t.contact_id,
             t.created_at, t.updated_at, t.escalation_level,
             t.ai_summary, t.conversation_id, t.turnaround_at, t.on_hold_since,
-            t.total_hold_seconds
+            t.total_hold_seconds, t.closed_at, t.first_agent_reply_at
        FROM tickets t
        LEFT JOIN users u ON u.id = t.ticket_owner_id
        LEFT JOIN contacts c ON c.id = t.contact_id
       WHERE t.id = $1`,
     [id]
   ).then((r) => r[0] ?? null);
+}
+
+// Ownership spans for one ticket, oldest first (see db/006). Hours are wall-clock
+// ownership, clamped to closure -- hold is NOT deducted here, because there is no
+// per-period hold history to attribute it with. The ticket page shows hold as its
+// own ticket-level line for that reason.
+export async function getTicketSpans(ticketId: number) {
+  return query<{ user_id: number | null; agent: string | null; assigned_at: string; ended_at: string | null; hours: string }>(
+    `SELECT a.user_id, u.name AS agent, a.assigned_at, a.ended_at,
+            GREATEST(EXTRACT(EPOCH FROM (LEAST(COALESCE(a.ended_at, now()), COALESCE(t.closed_at, now())) - a.assigned_at)), 0) / 3600 AS hours
+       FROM ticket_assignments a
+       JOIN tickets t ON t.id = a.ticket_id
+       LEFT JOIN users u ON u.id = a.user_id
+      WHERE a.ticket_id = $1
+      ORDER BY a.assigned_at`,
+    [ticketId]
+  );
 }
 
 export async function getTicketMessages(ticketId: number) {
