@@ -9,22 +9,31 @@ export function parseFilters(sp: Record<string, string | string[] | undefined>):
     const v = sp[k];
     return Array.isArray(v) ? v[0] : v;
   };
+  // Multi-value params are comma-separated (status=open,on_hold).
+  const splitCsv = (s: string) =>
+    s.split(",").map((x) => x.trim()).filter(Boolean);
   const f: TicketFilters = {};
   const from = get("from");
   const to = get("to");
   if (from) f.from = istDateToUtcStart(from) ?? undefined;
   if (to) f.to = istDateToUtcEnd(to) ?? undefined;
   const status = get("status");
-  if (status) f.status = status;
+  if (status) f.status = splitCsv(status);
   const priority = get("priority");
-  if (priority) f.priority = priority;
+  if (priority) f.priority = splitCsv(priority);
   const owner = get("owner");
-  if (owner === "unassigned") {
-    f.unassigned = true;
-  } else if (owner) {
-    // owner is an opaque agent token; accept a bare integer too for resilience.
-    const id = /^\d+$/.test(owner) ? Number(owner) : decodeAgentId(owner);
-    if (id !== null) f.ownerId = id;
+  if (owner) {
+    const ids: number[] = [];
+    for (const tok of splitCsv(owner)) {
+      if (tok === "unassigned") {
+        f.unassigned = true;
+        continue;
+      }
+      // owner is an opaque agent token; accept a bare integer too for resilience.
+      const id = /^\d+$/.test(tok) ? Number(tok) : decodeAgentId(tok);
+      if (id !== null) ids.push(id);
+    }
+    if (ids.length) f.ownerIds = ids;
   }
   const tag = get("tag");
   if (tag) f.tag = tag;
@@ -34,7 +43,7 @@ export function parseFilters(sp: Record<string, string | string[] | undefined>):
   const intent = get("intent");
   if (intent) f.intent = intent;
   const sentiment = get("sentiment");
-  if (sentiment) f.sentiment = sentiment;
+  if (sentiment) f.sentiment = splitCsv(sentiment);
   if (get("escalated") === "1") f.escalated = true;
   const requester = get("requester");
   if (requester) f.requester = requester;

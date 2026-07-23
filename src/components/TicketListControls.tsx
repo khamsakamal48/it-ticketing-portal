@@ -281,6 +281,41 @@ function ViewToggle({
 
 type Draft = Record<(typeof PANEL_KEYS)[number], string>;
 
+// Vertical list of checkboxes for a multi-select filter dimension.
+function CheckGroup({
+  title,
+  options,
+  has,
+  onToggle,
+}: {
+  title: string;
+  options: { value: string; label: string }[];
+  has: (value: string) => boolean;
+  onToggle: (value: string) => void;
+}) {
+  return (
+    <div>
+      <span className="label">{title}</span>
+      <div className="flex flex-col gap-1.5">
+        {options.map((o) => (
+          <label
+            key={o.value}
+            className="flex cursor-pointer items-center gap-2 text-sm text-fg"
+          >
+            <input
+              type="checkbox"
+              className="h-4 w-4 accent-brand"
+              checked={has(o.value)}
+              onChange={() => onToggle(o.value)}
+            />
+            {o.label}
+          </label>
+        ))}
+      </div>
+    </div>
+  );
+}
+
 function FilterPanel({
   open,
   onClose,
@@ -325,6 +360,16 @@ function FilterPanel({
 
   const set = (k: keyof Draft, v: string) => setDraft((d) => ({ ...d, [k]: v }));
 
+  // Multi-value dims store a CSV string in the draft; toggle adds/removes one value.
+  const toggle = (k: keyof Draft, v: string) =>
+    setDraft((d) => {
+      const cur = d[k] ? d[k].split(",").filter(Boolean) : [];
+      const next = cur.includes(v) ? cur.filter((x) => x !== v) : [...cur, v];
+      return { ...d, [k]: next.join(",") };
+    });
+  const has = (k: keyof Draft, v: string) =>
+    draft[k].split(",").filter(Boolean).includes(v);
+
   return (
     <>
       {/* Backdrop */}
@@ -357,70 +402,50 @@ function FilterPanel({
         </div>
 
         <div className="flex-1 space-y-5 overflow-y-auto px-5 py-5">
-          <div>
-            <label className="label" htmlFor="fp-agent">Agent</label>
-            <select
-              id="fp-agent"
-              className="input w-full"
-              value={draft.owner}
-              onChange={(e) => set("owner", e.target.value)}
-            >
-              <option value="">Any agent</option>
-              <option value="unassigned">Unassigned</option>
-              {agents.map((a) => (
-                <option key={a.id} value={a.id}>
-                  {a.name}
-                </option>
-              ))}
-            </select>
-          </div>
+          <CheckGroup
+            title="Agent"
+            options={[
+              { value: "unassigned", label: "Unassigned" },
+              ...agents.map((a) => ({ value: a.id, label: a.name })),
+            ]}
+            has={(v) => has("owner", v)}
+            onToggle={(v) => toggle("owner", v)}
+          />
 
-          <div>
-            <label className="label" htmlFor="fp-status">Status</label>
-            <select
-              id="fp-status"
-              className="input w-full"
-              value={draft.status}
-              onChange={(e) => set("status", e.target.value)}
-            >
-              <option value="">Any status</option>
-              <option value="open">Open</option>
-              <option value="closed">Closed</option>
-              <option value="on_hold">On Hold</option>
-              <option value="irrelevant">Irrelevant</option>
-            </select>
-          </div>
+          <CheckGroup
+            title="Status"
+            options={[
+              { value: "open", label: "Open" },
+              { value: "closed", label: "Closed" },
+              { value: "on_hold", label: "On Hold" },
+              { value: "irrelevant", label: "Irrelevant" },
+            ]}
+            has={(v) => has("status", v)}
+            onToggle={(v) => toggle("status", v)}
+          />
 
-          <div>
-            <label className="label" htmlFor="fp-priority">Priority</label>
-            <select
-              id="fp-priority"
-              className="input w-full"
-              value={draft.priority}
-              onChange={(e) => set("priority", e.target.value)}
-            >
-              <option value="">Any priority</option>
-              <option value="critical">Critical</option>
-              <option value="high">High</option>
-              <option value="medium">Medium</option>
-              <option value="low">Low</option>
-            </select>
-          </div>
+          <CheckGroup
+            title="Priority"
+            options={[
+              { value: "critical", label: "Critical" },
+              { value: "high", label: "High" },
+              { value: "medium", label: "Medium" },
+              { value: "low", label: "Low" },
+            ]}
+            has={(v) => has("priority", v)}
+            onToggle={(v) => toggle("priority", v)}
+          />
 
-          <div>
-            <label className="label" htmlFor="fp-sentiment">Sentiment</label>
-            <select
-              id="fp-sentiment"
-              className="input w-full"
-              value={draft.sentiment}
-              onChange={(e) => set("sentiment", e.target.value)}
-            >
-              <option value="">Any sentiment</option>
-              <option value="positive">Positive</option>
-              <option value="neutral">Neutral</option>
-              <option value="negative">Negative</option>
-            </select>
-          </div>
+          <CheckGroup
+            title="Sentiment"
+            options={[
+              { value: "positive", label: "Positive" },
+              { value: "neutral", label: "Neutral" },
+              { value: "negative", label: "Negative" },
+            ]}
+            has={(v) => has("sentiment", v)}
+            onToggle={(v) => toggle("sentiment", v)}
+          />
 
           <div>
             <label className="flex cursor-pointer items-center gap-2 text-sm text-fg">

@@ -36,6 +36,23 @@ export function ActiveFilters({ agents }: { agents: Agent[] }) {
     [router, pathname, sp]
   );
 
+  // Remove a single value from a comma-separated multi-value param; drop the key
+  // entirely once its last value is gone.
+  const removeValue = useCallback(
+    (key: string, value: string) => {
+      const next = new URLSearchParams(sp.toString());
+      const rest = (sp.get(key) ?? "")
+        .split(",")
+        .map((x) => x.trim())
+        .filter((x) => x && x !== value);
+      if (rest.length) next.set(key, rest.join(","));
+      else next.delete(key);
+      next.delete("page");
+      router.push(`${pathname}?${next.toString()}`);
+    },
+    [router, pathname, sp]
+  );
+
   const agentName = (token: string) => agents.find((a) => a.id === token)?.name ?? "Agent";
 
   const label = (key: string, value: string): string | null => {
@@ -56,12 +73,22 @@ export function ActiveFilters({ agents }: { agents: Agent[] }) {
     }
   };
 
-  const chips: { key: string; text: string }[] = [];
+  // These dims can hold multiple comma-separated values → one chip per value.
+  const MULTI_KEYS = new Set(["status", "priority", "owner", "sentiment"]);
+
+  const chips: { id: string; text: string; onRemove: () => void }[] = [];
   for (const key of CHIP_KEYS) {
-    const value = sp.get(key);
-    if (!value) continue;
-    const text = label(key, value);
-    if (text) chips.push({ key, text });
+    const raw = sp.get(key);
+    if (!raw) continue;
+    if (MULTI_KEYS.has(key)) {
+      for (const v of raw.split(",").map((x) => x.trim()).filter(Boolean)) {
+        const text = label(key, v);
+        if (text) chips.push({ id: `${key}:${v}`, text, onRemove: () => removeValue(key, v) });
+      }
+    } else {
+      const text = label(key, raw);
+      if (text) chips.push({ id: key, text, onRemove: () => remove(key) });
+    }
   }
 
   if (chips.length === 0) return null;
@@ -71,8 +98,8 @@ export function ActiveFilters({ agents }: { agents: Agent[] }) {
       <span className="text-xs font-medium text-subtle">Filtered by</span>
       {chips.map((c) => (
         <button
-          key={c.key}
-          onClick={() => remove(c.key)}
+          key={c.id}
+          onClick={c.onRemove}
           className="inline-flex items-center gap-1.5 rounded-full border border-border bg-surface-2 px-2.5 py-1 text-xs font-medium text-fg transition-colors hover:bg-surface hover:text-critical"
           aria-label={`Remove ${c.text} filter`}
         >

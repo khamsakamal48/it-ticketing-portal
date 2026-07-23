@@ -5,14 +5,14 @@ import { titleCase } from "./utils";
 export interface TicketFilters {
   from?: string; // UTC ISO (inclusive)
   to?: string; // UTC ISO (inclusive)
-  status?: string;
-  priority?: string;
-  ownerId?: number;
+  status?: string[]; // any-of match
+  priority?: string[]; // any-of match
+  ownerIds?: number[]; // any-of match
   unassigned?: boolean; // tickets with no owner (ticket_owner_id IS NULL)
   tag?: string;
   search?: string;
   intent?: string; // ai_intent exact match
-  sentiment?: string; // ai_sentiment exact match
+  sentiment?: string[]; // ai_sentiment any-of match
   escalated?: boolean; // escalation_level > 0
   requester?: string; // contact email
   minAgeH?: number; // open-or-any ticket older than N hours (SLA breach)
@@ -40,13 +40,21 @@ function buildWhere(f: TicketFilters): { clause: string; params: unknown[] } {
   if (f.to) add("t.created_at <= $?", f.to);
   // 'irrelevant' tickets (CC noise) are hidden from every screen + dashboard by
   // default; surfaced only when explicitly filtered for. Never counted in KPIs.
-  if (f.status) add("t.status = $?", f.status);
+  if (f.status?.length) add("t.status = ANY($?)", f.status);
   else conds.push("t.status <> 'irrelevant'");
-  if (f.priority) add("t.priority = $?", f.priority);
-  if (f.unassigned) conds.push("t.ticket_owner_id IS NULL");
-  else if (f.ownerId) add("t.ticket_owner_id = $?", f.ownerId);
+  if (f.priority?.length) add("t.priority = ANY($?)", f.priority);
+  // Owner: unassigned and specific agents combine with OR.
+  const hasOwners = !!f.ownerIds?.length;
+  if (f.unassigned && hasOwners) {
+    params.push(f.ownerIds);
+    conds.push(`(t.ticket_owner_id IS NULL OR t.ticket_owner_id = ANY($${params.length}))`);
+  } else if (f.unassigned) {
+    conds.push("t.ticket_owner_id IS NULL");
+  } else if (hasOwners) {
+    add("t.ticket_owner_id = ANY($?)", f.ownerIds);
+  }
   if (f.intent) add("t.ai_intent = $?", f.intent);
-  if (f.sentiment) add("t.ai_sentiment = $?", f.sentiment);
+  if (f.sentiment?.length) add("t.ai_sentiment = ANY($?)", f.sentiment);
   if (f.escalated) conds.push("t.escalation_level > 0");
   if (f.requester)
     add(
