@@ -1,8 +1,10 @@
 "use client";
 
 import { useRouter, useSearchParams, usePathname } from "next/navigation";
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
+  Check,
+  ChevronDown,
   ChevronLeft,
   ChevronRight,
   Download,
@@ -281,7 +283,7 @@ function ViewToggle({
 
 type Draft = Record<(typeof PANEL_KEYS)[number], string>;
 
-// Vertical list of checkboxes for a multi-select filter dimension.
+// Dropdown that opens to a checkbox list — multi-select for one filter dimension.
 function CheckGroup({
   title,
   options,
@@ -293,25 +295,71 @@ function CheckGroup({
   has: (value: string) => boolean;
   onToggle: (value: string) => void;
 }) {
+  const [open, setOpen] = useState(false);
+  const ref = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    if (!open) return;
+    const onDown = (e: MouseEvent) => {
+      if (ref.current && !ref.current.contains(e.target as Node)) setOpen(false);
+    };
+    document.addEventListener("mousedown", onDown);
+    return () => document.removeEventListener("mousedown", onDown);
+  }, [open]);
+
+  const selected = options.filter((o) => has(o.value));
+  const summary =
+    selected.length === 0
+      ? `All ${title.toLowerCase()}`
+      : selected.length === 1
+      ? selected[0].label
+      : `${selected.length} selected`;
+
   return (
-    <div>
+    <div ref={ref} className="relative">
       <span className="label">{title}</span>
-      <div className="flex flex-col gap-1.5">
-        {options.map((o) => (
-          <label
-            key={o.value}
-            className="flex cursor-pointer items-center gap-2 text-sm text-fg"
-          >
-            <input
-              type="checkbox"
-              className="h-4 w-4 accent-brand"
-              checked={has(o.value)}
-              onChange={() => onToggle(o.value)}
-            />
-            {o.label}
-          </label>
-        ))}
-      </div>
+      <button
+        type="button"
+        onClick={() => setOpen((o) => !o)}
+        aria-haspopup="listbox"
+        aria-expanded={open}
+        className="input flex h-9 w-full items-center justify-between text-left"
+      >
+        <span className={selected.length ? "text-fg" : "text-subtle"}>{summary}</span>
+        <ChevronDown
+          size={15}
+          className={`shrink-0 text-subtle transition-transform ${open ? "rotate-180" : ""}`}
+        />
+      </button>
+      {open && (
+        <div
+          role="listbox"
+          className="absolute z-10 mt-1 max-h-60 w-full overflow-y-auto rounded-lg border border-border bg-surface p-1 shadow-pop"
+        >
+          {options.map((o) => {
+            const on = has(o.value);
+            return (
+              <button
+                key={o.value}
+                type="button"
+                role="option"
+                aria-selected={on}
+                onClick={() => onToggle(o.value)}
+                className="flex w-full items-center gap-2 rounded-md px-2 py-1.5 text-left text-sm text-fg hover:bg-surface-2"
+              >
+                <span
+                  className={`flex h-4 w-4 shrink-0 items-center justify-center rounded border ${
+                    on ? "border-brand bg-brand text-brand-fg" : "border-border"
+                  }`}
+                >
+                  {on && <Check size={12} strokeWidth={3} />}
+                </span>
+                {o.label}
+              </button>
+            );
+          })}
+        </div>
+      )}
     </div>
   );
 }
