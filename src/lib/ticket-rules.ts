@@ -26,8 +26,9 @@ export function isValidPriority(p: string): p is TicketPriority {
 }
 
 // Allowed manual status transitions in the portal. Matches n8n behaviour:
-// agents may close an open ticket, and reopen a closed one (a customer reply
-// also reopens closed -> open, handled by n8n, not here).
+// agents may close an open ticket; reopening a closed one is manager-only (see
+// assertCanReopen — a customer reply also reopens closed -> open, handled by
+// n8n, not here, and is not subject to this rule).
 //   on_hold can be entered from open and closed, and exited back to open/closed.
 //   irrelevant can be set from any state and is only reversible back to open.
 const TRANSITIONS: Record<TicketStatus, TicketStatus[]> = {
@@ -54,6 +55,20 @@ export function assertTransition(from: string, to: string): void {
 export function assertOwnerRequiredForClose(status: TicketStatus, ownerId: number | null): void {
   if (status === "closed" && !ownerId)
     throw new RuleError("Closing a ticket requires an assigned (active) owner.");
+}
+
+// Reopening a closed ticket is a manager action: a closed ticket has already
+// mailed the customer a closure notification, and its closed_at anchors the
+// resolution-time KPI. The one exception is an agent undoing their own
+// accidental close while the closure email is still in its deferred window.
+export const UNDO_CLOSE_WINDOW_SECONDS = 120;
+
+export function assertCanReopen(isManagerRole: boolean, isOwnRecentClose: boolean): void {
+  if (isManagerRole || isOwnRecentClose) return;
+  throw new RuleError(
+    "Only a manager can reopen a closed ticket. Ask a manager, or use Undo within " +
+      `${UNDO_CLOSE_WINDOW_SECONDS / 60} minutes of closing it.`
+  );
 }
 
 // Priority keyword classifier — identical lists to the n8n "Process Ticket Data" node.

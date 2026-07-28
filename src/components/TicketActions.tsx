@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useTransition } from "react";
+import { useEffect, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { DateTimePicker } from "@/components/DateTimePicker";
 import {
@@ -8,6 +8,7 @@ import {
   changeStatus,
   changePriority,
   addInternalNote,
+  sendReply,
   setTurnaround,
   correctRequester,
   type ActionResult,
@@ -18,6 +19,17 @@ interface Agent {
   id: number;
   name: string;
 }
+
+const STATUS_LABELS: Record<string, string> = {
+  open: "Open",
+  closed: "Closed",
+  on_hold: "On Hold",
+  irrelevant: "Irrelevant",
+};
+
+// Must not exceed UNDO_CLOSE_WINDOW_SECONDS in src/lib/ticket-rules.ts — past it
+// the server rejects an agent's reopen and the closure email has already gone.
+const UNDO_WINDOW_MS = 100_000;
 
 interface Contact {
   id: number;
@@ -47,6 +59,8 @@ export function TicketActions({
   contactId,
   createdAt,
   detectedOriginal,
+  canReopen,
+  hasRequesterEmail,
 }: {
   ticketId: number;
   updatedAt: string;
@@ -59,11 +73,22 @@ export function TicketActions({
   contactId: number | null;
   createdAt: string;
   detectedOriginal: ParsedOriginal | null;
+  /** Manager/admin. Server enforces this too — here it just hides a dead option. */
+  canReopen: boolean;
+  /** Without a requester email there is nobody to reply to. */
+  hasRequesterEmail: boolean;
 }) {
   const router = useRouter();
   const [pending, startTransition] = useTransition();
   const [msg, setMsg] = useState<{ tone: "ok" | "warn" | "err"; text: string } | null>(null);
   const [note, setNote] = useState("");
+  const [reply, setReply] = useState("");
+  // Selects are controlled so a cancelled confirm snaps back to the real value.
+  const [ownerSel, setOwnerSel] = useState<string>(ownerId ? String(ownerId) : "");
+  const [statusSel, setStatusSel] = useState(status);
+  // Shown for UNDO_WINDOW_MS after a close, so a misclick never reaches the
+  // customer — the closure email is held back for the same window server-side.
+  const [undoable, setUndoable] = useState(false);
   // Shared note echoed into the On Hold / turnaround notification email.
   const [statusNote, setStatusNote] = useState("");
   const [tat, setTat] = useState(toLocalInput(turnaroundAt));
@@ -101,6 +126,56 @@ export function TicketActions({
         setMsg({ tone: "err", text: res.error ?? "Failed." });
       }
     });
+  };
+
+  // Keep the controlled selects in step with the server state after a refresh.
+  useEffect(() => setStatusSel(status), [status]);
+  useEffect(() => setOwnerSel(ownerId ? String(ownerId) : ""), [ownerId]);
+
+  useEffect(() => {
+    if (!undoable) return;
+    const t = setTimeout(() => setUndoable(false), UNDO_WINDOW_MS);
+    return () => clearTimeout(t);
+  }, [undoable]);
+
+  // Status and assignment both email people, so both confirm before firing.
+  const onStatusChange = (next: string) => {
+    if (next === status) return;
+    const ok = window.confirm(
+      `Change ticket #${ticketId} from "${STATUS_LABELS[status] ?? status}" to "${
+        STATUS_LABELS[next] ?? next
+      }"?`
+    );
+    if (!ok) {
+      setStatusSel(status);
+      return;
+    }
+    setStatusSel(next);
+    run(
+      () => changeStatus(ticketId, next, updatedAt, statusNote),
+      () => {
+        setStatusNote("");
+        if (next === "closed") setUndoable(true);
+      }
+    );
+  };
+
+  const onOwnerChange = (next: string) => {
+    if (!next || next === String(ownerId ?? "")) return;
+    const agent = agents.find((a) => String(a.id) === next);
+    if (!window.confirm(`Reassign ticket #${ticketId} to ${agent?.name ?? "this agent"}?`)) {
+      setOwnerSel(ownerId ? String(ownerId) : "");
+      return;
+    }
+    setOwnerSel(next);
+    run(() => reassignTicket(ticketId, Number(next), updatedAt));
+  };
+
+  // Reopen from the undo banner. Allowed for the closing agent inside the window
+  // (see assertCanReopen); the deferred closure email is cancelled by the reopen.
+  const undoClose = () => {
+    setUndoable(false);
+    run(() => changeStatus(ticketId, "open", updatedAt));
   };
 
   const submitRequester = () => {
@@ -149,18 +224,80 @@ export function TicketActions({
         </div>
       )}
 
+      {undoable && status === "closed" && (
+        <div
+          role="status"
+          aria-live="polite"
+          className="mb-4 flex items-center justify-between gap-3 rounded-lg bg-open/10 px-3 py-2 text-sm text-open"
+        >
+          <span>Ticket closed. The requester has not been emailed yet.</span>
+          <button className="btn-ghost shrink-0" disabled={pending} onClick={undoClose}>
+            Undo
+          </button>
+        </div>
+      )}
+
       <div className="space-y-4">
+        {/* Reply to the requester — goes out as an email from the shared mailbox,
+            in the ticket's existing thread. Deliberately first and visually set
+            apart from "Add internal note", which nobody outside the team sees. */}
+        <div className="rounded-lg border border-brand/25 bg-brand/[0.06] p-3">
+          <label className="label" htmlFor="ta-reply">Reply to requester</label>
+          <textarea
+            id="ta-reply"
+            className="input w-full"
+            rows={4}
+            value={reply}
+            disabled={pending || !hasRequesterEmail}
+            onChange={(e) => setReply(e.target.value)}
+            placeholder={
+              hasRequesterEmail
+                ? "Emailed to the requester on this ticket's thread…"
+                : "This ticket has no requester email — correct the requester first."
+            }
+          />
+          <div className="mt-2 flex gap-2">
+            <button
+              className="btn-primary flex-1"
+              disabled={pending || !reply.trim() || !hasRequesterEmail}
+              onClick={() => run(() => sendReply(ticketId, reply, updatedAt), () => setReply(""))}
+            >
+              {pending ? "Sending…" : "Send reply"}
+            </button>
+            {status !== "closed" && (
+              <button
+                className="btn-ghost flex-1"
+                disabled={pending || !reply.trim() || !hasRequesterEmail}
+                onClick={() => {
+                  if (!window.confirm(`Send this reply and close ticket #${ticketId}?`)) return;
+                  run(
+                    () => sendReply(ticketId, reply, updatedAt, true),
+                    () => {
+                      setReply("");
+                      setUndoable(true);
+                    }
+                  );
+                }}
+              >
+                Send &amp; close
+              </button>
+            )}
+          </div>
+          <p className="mt-1 text-xs text-subtle">
+            Sent from the IT Operations mailbox on the original subject line, so it stays in the
+            requester&apos;s existing email thread.
+          </p>
+        </div>
+
         {/* Reassign */}
         <div>
           <label className="label" htmlFor="ta-owner">Assign to</label>
           <select
             id="ta-owner"
             className="input w-full"
-            defaultValue={ownerId ?? ""}
+            value={ownerSel}
             disabled={pending}
-            onChange={(e) =>
-              e.target.value && run(() => reassignTicket(ticketId, Number(e.target.value), updatedAt))
-            }
+            onChange={(e) => onOwnerChange(e.target.value)}
           >
             <option value="" disabled>
               Select agent…
@@ -275,17 +412,20 @@ export function TicketActions({
           <select
             id="ta-status"
             className="input w-full"
-            value={status}
+            value={statusSel}
             disabled={pending}
-            onChange={(e) => run(() => changeStatus(ticketId, e.target.value, updatedAt, statusNote), () => setStatusNote(""))}
+            onChange={(e) => onStatusChange(e.target.value)}
           >
-            <option value="open">Open</option>
+            {/* Reopening a closed ticket is manager-only — the option is hidden
+                for everyone else (the server enforces it regardless). */}
+            {(status !== "closed" || canReopen) && <option value="open">Open</option>}
             <option value="closed">Closed</option>
             <option value="on_hold">On Hold</option>
             <option value="irrelevant">Irrelevant</option>
           </select>
           <p className="mt-1 text-xs text-subtle">
             Closing requires an owner. On Hold pauses all SLA timers. Irrelevant hides the ticket from dashboards.
+            {status === "closed" && !canReopen && " Only a manager can reopen a closed ticket."}
           </p>
         </div>
 

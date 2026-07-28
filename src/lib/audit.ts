@@ -5,6 +5,7 @@ export type AuditAction =
   | "status_change"
   | "priority_change"
   | "note_added"
+  | "reply_sent"
   | "close"
   | "reopen"
   | "hold"

@@ -18,6 +18,7 @@ import { fmtIST, fmtDurationHours } from "@/lib/datetime";
 import { decodeTicketId } from "@/lib/ticket-id";
 import { isHtmlBody, sanitizeEmailHtml } from "@/lib/sanitize-email";
 import { parseForwardedOriginal } from "@/lib/forwarded-email";
+import { auth, isManager } from "@/lib/auth";
 
 export const dynamic = "force-dynamic";
 
@@ -43,7 +44,8 @@ export default async function TicketDetail({
   const ticket = await getTicket(ticketId);
   if (!ticket) notFound();
 
-  const [messages, tags, audit, spans, agents, contacts] = await Promise.all([
+  const [session, messages, tags, audit, spans, agents, contacts] = await Promise.all([
+    auth(),
     getTicketMessages(ticketId),
     getTicketTags(ticketId),
     getTicketAudit(ticketId),
@@ -219,6 +221,8 @@ export default async function TicketDetail({
               contactId={ticket.contact_id}
               createdAt={new Date(ticket.created_at).toISOString()}
               detectedOriginal={detectedOriginal}
+              canReopen={isManager(session?.user?.role)}
+              hasRequesterEmail={Boolean(ticket.contact_email)}
             />
 
             <ResolutionBreakdown

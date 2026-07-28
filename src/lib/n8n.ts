@@ -46,6 +46,22 @@ export interface TurnaroundNotification {
   actorEmail: string;
 }
 
+// An agent's reply typed in the portal. n8n sends it from the shared mailbox so
+// the customer sees one sender; the portal has already stored the message row.
+export interface ReplyNotification {
+  ticketId: number;
+  /** Opaque slug for the "Open ticket in portal" deep link. */
+  ticketSlug: string;
+  contactEmail: string | null;
+  /** Original ticket subject. n8n mails "Re: <subject>" VERBATIM — Exchange derives
+   *  the conversation id from the subject, so altering it breaks threading. */
+  subject: string | null;
+  /** Agent's reply, already HTML. Injected raw into the template, never escaped. */
+  bodyHtml: string;
+  actorEmail: string;
+  actorName: string | null;
+}
+
 export interface WebhookResult {
   /** Whether the relevant N8N_*_WEBHOOK_URL is configured at all. */
   configured: boolean;
@@ -94,6 +110,11 @@ async function postWebhook(
 /** Notify n8n to send the customer closure email. */
 export function notifyTicketClosed(payload: ClosureNotification): Promise<WebhookResult> {
   return postWebhook(process.env.N8N_CLOSE_WEBHOOK_URL, payload, "closure", payload.ticketId);
+}
+
+/** Send an agent's portal-composed reply to the customer, in the ticket's thread. */
+export function notifyTicketReply(payload: ReplyNotification): Promise<WebhookResult> {
+  return postWebhook(process.env.N8N_REPLY_WEBHOOK_URL, payload, "reply", payload.ticketId);
 }
 
 /**
