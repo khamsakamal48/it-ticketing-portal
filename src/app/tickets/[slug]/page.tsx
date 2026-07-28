@@ -223,6 +223,10 @@ export default async function TicketDetail({
               detectedOriginal={detectedOriginal}
               canReopen={isManager(session?.user?.role)}
               hasRequesterEmail={Boolean(ticket.contact_email)}
+              participants={(ticket.participant_emails ?? "")
+                .split(",")
+                .map((e) => e.trim())
+                .filter(Boolean)}
             />
 
             <ResolutionBreakdown

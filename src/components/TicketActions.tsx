@@ -59,6 +59,7 @@ export function TicketActions({
   detectedOriginal,
   canReopen,
   hasRequesterEmail,
+  participants,
 }: {
   ticketId: number;
   updatedAt: string;
@@ -75,12 +76,17 @@ export function TicketActions({
   canReopen: boolean;
   /** Without a requester email there is nobody to reply to. */
   hasRequesterEmail: boolean;
+  /** To/CC of the customer's original email, minus the requester and the mailbox. */
+  participants: string[];
 }) {
   const router = useRouter();
   const [pending, startTransition] = useTransition();
   const [msg, setMsg] = useState<{ tone: "ok" | "warn" | "err"; text: string } | null>(null);
   const [note, setNote] = useState("");
   const [reply, setReply] = useState("");
+  // Default ON: a reply that silently drops the original CC list leaves those
+  // people with no idea the request was handled. Off = requester only.
+  const [replyAll, setReplyAll] = useState(true);
   // Selects are controlled so a cancelled confirm snaps back to the real value.
   const [ownerSel, setOwnerSel] = useState<string>(ownerId ? String(ownerId) : "");
   const [statusSel, setStatusSel] = useState(status);
@@ -204,6 +210,14 @@ export function TicketActions({
     run(() => correctRequester(ticketId, opts, updatedAt));
   };
 
+  // Replying needs a requester to send to and an owner to copy. Server enforces
+  // both; this just explains why the box is disabled instead of failing on send.
+  const replyBlocked = !hasRequesterEmail
+    ? "This ticket has no requester email — fix the requester above before replying."
+    : !ownerId
+    ? "Assign an agent to this ticket first — the assigned agent is copied on every reply."
+    : null;
+
   const toneClass: Record<"ok" | "warn" | "err", string> = {
     ok: "bg-resolved/10 text-resolved",
     warn: "bg-open/10 text-open",
@@ -253,30 +267,46 @@ export function TicketActions({
             className="input w-full"
             rows={4}
             value={reply}
-            disabled={pending || !hasRequesterEmail}
+            disabled={pending || replyBlocked !== null}
             onChange={(e) => setReply(e.target.value)}
-            placeholder={
-              hasRequesterEmail
-                ? "Emailed to the requester on this ticket's thread…"
-                : "This ticket has no requester email — correct the requester first."
-            }
+            placeholder={replyBlocked ?? "Emailed to the requester on this ticket's thread…"}
           />
+          {replyBlocked && (
+            <p className="mt-1 text-xs font-medium text-critical">{replyBlocked}</p>
+          )}
+          {participants.length > 0 && !replyBlocked && (
+            <label className="mt-2 flex items-start gap-2 text-xs text-muted">
+              <input
+                type="checkbox"
+                className="mt-0.5 shrink-0"
+                checked={replyAll}
+                disabled={pending}
+                onChange={(e) => setReplyAll(e.target.checked)}
+              />
+              <span>
+                Also copy everyone on the original email ({participants.length}):{" "}
+                <span className="break-all text-subtle">{participants.join(", ")}</span>
+              </span>
+            </label>
+          )}
           <div className="mt-2 flex gap-2">
             <button
               className="btn-primary flex-1"
-              disabled={pending || !reply.trim() || !hasRequesterEmail}
-              onClick={() => run(() => sendReply(ticketId, reply, updatedAt), () => setReply(""))}
+              disabled={pending || !reply.trim() || replyBlocked !== null}
+              onClick={() =>
+                run(() => sendReply(ticketId, reply, updatedAt, false, replyAll), () => setReply(""))
+              }
             >
               {pending ? "Sending…" : "Send reply"}
             </button>
             {status !== "closed" && (
               <button
                 className="btn-ghost flex-1"
-                disabled={pending || !reply.trim() || !hasRequesterEmail}
+                disabled={pending || !reply.trim() || replyBlocked !== null}
                 onClick={() => {
                   if (!window.confirm(`Send this reply and close ticket #${ticketId}?`)) return;
                   run(
-                    () => sendReply(ticketId, reply, updatedAt, true),
+                    () => sendReply(ticketId, reply, updatedAt, true, replyAll),
                     () => {
                       setReply("");
                       setUndoLeft(UNDO_CLOSE_WINDOW_SECONDS);
@@ -290,7 +320,8 @@ export function TicketActions({
           </div>
           <p className="mt-1 text-xs text-subtle">
             Sent from the IT Operations mailbox on the original subject line, so it stays in the
-            requester&apos;s existing email thread.
+            requester&apos;s existing email thread. The assigned agent is copied, so the
+            requester&apos;s answer reaches a person and not just the shared mailbox.
           </p>
         </div>
 

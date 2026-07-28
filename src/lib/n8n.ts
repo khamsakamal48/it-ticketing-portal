@@ -58,6 +58,18 @@ export interface ReplyNotification {
   subject: string | null;
   /** Agent's reply, already HTML. Injected raw into the template, never escaped. */
   bodyHtml: string;
+  /**
+   * Copied on the outgoing email so a named human is visibly in the conversation
+   * and gets the customer's answer directly — the assigned owner plus whoever
+   * actually sent it. Never empty: replying requires an owner.
+   */
+  ccEmails: string[];
+  /**
+   * When true (the default) n8n also copies `tickets.participant_emails` — the
+   * To/CC of the customer's original mail — so the wider thread sees the answer.
+   * Agents can switch it off for a reply meant only for the requester.
+   */
+  includeParticipants: boolean;
   actorEmail: string;
   actorName: string | null;
 }

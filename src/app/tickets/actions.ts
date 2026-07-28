@@ -16,6 +16,7 @@ import {
 import {
   assertTransition,
   assertOwnerRequiredForClose,
+  assertOwnerRequiredForReply,
   assertCanReopen,
   isValidPriority,
   isValidStatus,
@@ -583,7 +584,9 @@ export async function sendReply(
   ticketId: number,
   body: string,
   expectedUpdatedAt: string,
-  alsoClose = false
+  alsoClose = false,
+  /** Copy everyone who was on the customer's original email (To + CC). */
+  includeParticipants = true
 ): Promise<ActionResult> {
   return wrap(
     (async () => {
@@ -595,6 +598,11 @@ export async function sendReply(
         const t = await lockTicket(client, ticketId, expectedUpdatedAt);
         if (!t.contact_email)
           throw new RuleError("This ticket has no requester email — fix the requester first.");
+        assertOwnerRequiredForReply(t.ticket_owner_id);
+        // Copy the assigned owner and the sender (usually the same person, but a
+        // colleague may answer on someone else's ticket — both stay in the loop).
+        const owner = await activeAgent(client, t.ticket_owner_id!);
+        const cc = [...new Set([owner?.email, actor.email].filter(Boolean) as string[])];
         if (alsoClose && t.status !== "closed") {
           assertTransition(t.status, "closed");
           assertOwnerRequiredForClose("closed", t.ticket_owner_id);
@@ -637,7 +645,7 @@ export async function sendReply(
             [ticketId]
           );
         }
-        return { contactEmail: t.contact_email, subject: t.subject, closing };
+        return { contactEmail: t.contact_email, subject: t.subject, closing, cc };
       });
 
       // Email is owned by n8n; fire only after a durable commit.
@@ -647,6 +655,8 @@ export async function sendReply(
         contactEmail: sent.contactEmail,
         subject: sent.subject,
         bodyHtml: textToHtml(text),
+        ccEmails: sent.cc,
+        includeParticipants,
         actorEmail: actor.email,
         actorName: actor.name,
       });

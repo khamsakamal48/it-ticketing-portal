@@ -423,6 +423,7 @@ export async function getTicket(id: number) {
       total_hold_seconds: string | number | null;
       closed_at: string | null;
       first_agent_reply_at: string | null;
+      participant_emails: string | null;
     }
   >(
     `SELECT t.id, t.subject, t.status, t.priority,
@@ -430,7 +431,8 @@ export async function getTicket(id: number) {
             c.email AS contact_email, t.contact_id,
             t.created_at, t.updated_at, t.escalation_level,
             t.ai_summary, t.conversation_id, t.turnaround_at, t.on_hold_since,
-            t.total_hold_seconds, t.closed_at, t.first_agent_reply_at
+            t.total_hold_seconds, t.closed_at, t.first_agent_reply_at,
+            t.participant_emails
        FROM tickets t
        LEFT JOIN users u ON u.id = t.ticket_owner_id
        LEFT JOIN contacts c ON c.id = t.contact_id

@@ -57,6 +57,17 @@ export function assertOwnerRequiredForClose(status: TicketStatus, ownerId: numbe
     throw new RuleError("Closing a ticket requires an assigned (active) owner.");
 }
 
+// Replying requires an owner for the same reason closing does, plus one more:
+// the reply goes out from the shared IT Operations mailbox, and the assigned
+// agent is copied on it so a human stays in the customer conversation. With no
+// owner there is nobody to copy, and the customer would be talking to a mailbox.
+export function assertOwnerRequiredForReply(ownerId: number | null): void {
+  if (!ownerId)
+    throw new RuleError(
+      "Assign an agent to this ticket before replying — the assigned agent is copied on every reply."
+    );
+}
+
 // Reopening a closed ticket is a manager action: a closed ticket has already
 // mailed the customer a closure notification, and its closed_at anchors the
 // resolution-time KPI. The one exception is an agent undoing their own
