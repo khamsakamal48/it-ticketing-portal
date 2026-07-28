@@ -61,13 +61,15 @@ export function assertOwnerRequiredForClose(status: TicketStatus, ownerId: numbe
 // mailed the customer a closure notification, and its closed_at anchors the
 // resolution-time KPI. The one exception is an agent undoing their own
 // accidental close while the closure email is still in its deferred window.
-export const UNDO_CLOSE_WINDOW_SECONDS = 120;
+// Also how long the closure email is held back, and how long the Undo button
+// stays on screen — the UI imports this constant so the two cannot drift.
+export const UNDO_CLOSE_WINDOW_SECONDS = 30;
 
 export function assertCanReopen(isManagerRole: boolean, isOwnRecentClose: boolean): void {
   if (isManagerRole || isOwnRecentClose) return;
   throw new RuleError(
     "Only a manager can reopen a closed ticket. Ask a manager, or use Undo within " +
-      `${UNDO_CLOSE_WINDOW_SECONDS / 60} minutes of closing it.`
+      `${UNDO_CLOSE_WINDOW_SECONDS} seconds of closing it.`
   );
 }
 

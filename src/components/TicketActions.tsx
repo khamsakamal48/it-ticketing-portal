@@ -14,6 +14,7 @@ import {
   type ActionResult,
 } from "@/app/tickets/actions";
 import type { ParsedOriginal } from "@/lib/forwarded-email";
+import { UNDO_CLOSE_WINDOW_SECONDS } from "@/lib/ticket-rules";
 
 interface Agent {
   id: number;
@@ -27,9 +28,6 @@ const STATUS_LABELS: Record<string, string> = {
   irrelevant: "Irrelevant",
 };
 
-// Must not exceed UNDO_CLOSE_WINDOW_SECONDS in src/lib/ticket-rules.ts — past it
-// the server rejects an agent's reopen and the closure email has already gone.
-const UNDO_WINDOW_MS = 100_000;
 
 interface Contact {
   id: number;
@@ -86,9 +84,10 @@ export function TicketActions({
   // Selects are controlled so a cancelled confirm snaps back to the real value.
   const [ownerSel, setOwnerSel] = useState<string>(ownerId ? String(ownerId) : "");
   const [statusSel, setStatusSel] = useState(status);
-  // Shown for UNDO_WINDOW_MS after a close, so a misclick never reaches the
-  // customer — the closure email is held back for the same window server-side.
-  const [undoable, setUndoable] = useState(false);
+  // Seconds left to undo a close. The closure email is held back for exactly the
+  // same window server-side, so the countdown is a truthful "time left before
+  // the requester is told", not a cosmetic timer. 0 = no undo offer on screen.
+  const [undoLeft, setUndoLeft] = useState(0);
   // Shared note echoed into the On Hold / turnaround notification email.
   const [statusNote, setStatusNote] = useState("");
   const [tat, setTat] = useState(toLocalInput(turnaroundAt));
@@ -132,11 +131,12 @@ export function TicketActions({
   useEffect(() => setStatusSel(status), [status]);
   useEffect(() => setOwnerSel(ownerId ? String(ownerId) : ""), [ownerId]);
 
+  // Tick the undo countdown down to 0, which also removes the banner.
   useEffect(() => {
-    if (!undoable) return;
-    const t = setTimeout(() => setUndoable(false), UNDO_WINDOW_MS);
+    if (undoLeft <= 0) return;
+    const t = setTimeout(() => setUndoLeft((n) => n - 1), 1000);
     return () => clearTimeout(t);
-  }, [undoable]);
+  }, [undoLeft]);
 
   // Status and assignment both email people, so both confirm before firing.
   const onStatusChange = (next: string) => {
@@ -155,7 +155,7 @@ export function TicketActions({
       () => changeStatus(ticketId, next, updatedAt, statusNote),
       () => {
         setStatusNote("");
-        if (next === "closed") setUndoable(true);
+        if (next === "closed") setUndoLeft(UNDO_CLOSE_WINDOW_SECONDS);
       }
     );
   };
@@ -174,7 +174,7 @@ export function TicketActions({
   // Reopen from the undo banner. Allowed for the closing agent inside the window
   // (see assertCanReopen); the deferred closure email is cancelled by the reopen.
   const undoClose = () => {
-    setUndoable(false);
+    setUndoLeft(0);
     run(() => changeStatus(ticketId, "open", updatedAt));
   };
 
@@ -224,13 +224,18 @@ export function TicketActions({
         </div>
       )}
 
-      {undoable && status === "closed" && (
+      {undoLeft > 0 && status === "closed" && (
         <div
           role="status"
+          // Only announce the headline once — a per-second aria-live update would
+          // make a screen reader read the countdown aloud every tick.
           aria-live="polite"
           className="mb-4 flex items-center justify-between gap-3 rounded-lg bg-open/10 px-3 py-2 text-sm text-open"
         >
-          <span>Ticket closed. The requester has not been emailed yet.</span>
+          <span>
+            Ticket closed. Emailing the requester in{" "}
+            <strong aria-hidden className="tabular-nums">{undoLeft}s</strong>.
+          </span>
           <button className="btn-ghost shrink-0" disabled={pending} onClick={undoClose}>
             Undo
           </button>
@@ -274,7 +279,7 @@ export function TicketActions({
                     () => sendReply(ticketId, reply, updatedAt, true),
                     () => {
                       setReply("");
-                      setUndoable(true);
+                      setUndoLeft(UNDO_CLOSE_WINDOW_SECONDS);
                     }
                   );
                 }}
