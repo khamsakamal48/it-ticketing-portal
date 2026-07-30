@@ -315,7 +315,7 @@ export async function getAgentPerformance(f: TicketFilters, slaHours: number) {
   // so the per-agent counts always add up to the "Breaching Now" KPI.
   const breachCond = `t.status = 'open'
             AND EXTRACT(EPOCH FROM (now() - t.created_at)) / 3600 - t.total_hold_seconds/3600.0 > ${slaP}`;
-  return query<{ agent: string; agent_id: number | null; resolved: string; avg_resolution_h: string | null; open_load: string; on_hold_load: string; breaching: string; breaching_tickets: { id: number; subject: string | null; over_h: number }[] }>(
+  return query<{ agent: string; agent_id: number | null; resolved: string; avg_resolution_h: string | null; open_load: string; on_hold_load: string; breaching: string }>(
     `WITH ticket_spans AS (
         SELECT a.user_id, a.ticket_id,
                GREATEST(EXTRACT(EPOCH FROM (LEAST(COALESCE(a.ended_at, now()), t.closed_at) - a.assigned_at)), 0) AS span_s,
@@ -338,18 +338,7 @@ export async function getAgentPerformance(f: TicketFilters, slaHours: number) {
             MAX(pa.agent_hours)                          AS avg_resolution_h,
             COUNT(*) FILTER (WHERE t.status = 'open')    AS open_load,
             COUNT(*) FILTER (WHERE t.status = 'on_hold') AS on_hold_load,
-            COUNT(*) FILTER (WHERE ${breachCond})        AS breaching,
-            COALESCE(
-              jsonb_agg(
-                jsonb_build_object(
-                  'id', t.id,
-                  'subject', t.subject,
-                  'over_h', ROUND(EXTRACT(EPOCH FROM (now() - t.created_at)) / 3600 - t.total_hold_seconds/3600.0 - ${slaP})
-                )
-                ORDER BY t.created_at
-              ) FILTER (WHERE ${breachCond}),
-              '[]'::jsonb
-            )                                            AS breaching_tickets
+            COUNT(*) FILTER (WHERE ${breachCond})        AS breaching
        FROM tickets t
        LEFT JOIN users u ON u.id = t.ticket_owner_id
        LEFT JOIN per_agent pa ON pa.user_id = t.ticket_owner_id
