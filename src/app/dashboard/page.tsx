@@ -48,7 +48,7 @@ import {
   getTopRequesters,
   getLatestDailyStatus,
 } from "@/lib/queries";
-import { encodeAgentId } from "@/lib/opaque-id";
+import { encodeAgentId, encodeTicketId } from "@/lib/opaque-id";
 
 export const dynamic = "force-dynamic";
 
@@ -93,7 +93,7 @@ export default async function DashboardPage({
     getPriorityBreakdown(f),
     getIntentBreakdown(f),
     getSentimentBreakdown(f),
-    getAgentPerformance(f),
+    getAgentPerformance(f, slaEscalationHours),
     getTopRequesters(f),
     getLatestDailyStatus(),
   ]);
@@ -290,20 +290,50 @@ export default async function DashboardPage({
                       <span style={{ textAlign: "right" }}>Avg h</span>
                       <span style={{ textAlign: "right" }}>Open</span>
                       <span style={{ textAlign: "right" }}>On hold</span>
-                      <span style={{ textAlign: "right" }}>Handed off</span>
+                      <span style={{ textAlign: "right" }}>Breaching</span>
                     </div>
                     {agentPerf.length === 0 && (
                       <p style={{ paddingTop: "12px", color: "rgb(var(--subtle))" }}>No tickets in range.</p>
                     )}
                     {agentPerf.map((r) => (
-                      <Link key={r.agent} href={queueHref({ owner: ownerValue(r.agent_id) })} style={{ display: "grid", gridTemplateColumns: "2.2fr 1fr 0.9fr 0.8fr 0.9fr 1.1fr", columnGap: "8px", borderTop: "1px solid rgb(var(--border) / 0.6)", paddingTop: "7px", paddingBottom: "7px", textDecoration: "none", cursor: "pointer" }} className="transition-colors hover:bg-surface-2">
-                        <span style={{ fontWeight: 500, color: "rgb(var(--fg))" }}>{r.agent}</span>
-                        <span style={{ textAlign: "right", fontVariantNumeric: "tabular-nums", color: "rgb(var(--fg))" }}>{n(r.resolved)}</span>
-                        <span style={{ textAlign: "right", fontVariantNumeric: "tabular-nums", color: "rgb(var(--muted))" }}>{r.avg_resolution_h != null ? n(r.avg_resolution_h).toFixed(1) : "—"}</span>
-                        <span style={{ textAlign: "right", fontVariantNumeric: "tabular-nums", color: "rgb(var(--muted))" }}>{n(r.open_load)}</span>
-                        <span style={{ textAlign: "right", fontVariantNumeric: "tabular-nums", color: "rgb(var(--muted))" }}>{n(r.on_hold_load)}</span>
-                        <span style={{ textAlign: "right", fontVariantNumeric: "tabular-nums", color: "rgb(var(--subtle))" }}>{n(r.handed_off) || "—"}</span>
-                      </Link>
+                      <div key={r.agent} style={{ borderTop: "1px solid rgb(var(--border) / 0.6)" }}>
+                        <Link href={queueHref({ owner: ownerValue(r.agent_id) })} style={{ display: "grid", gridTemplateColumns: "2.2fr 1fr 0.9fr 0.8fr 0.9fr 1.1fr", columnGap: "8px", paddingTop: "7px", paddingBottom: "7px", textDecoration: "none", cursor: "pointer" }} className="transition-colors hover:bg-surface-2">
+                          <span style={{ fontWeight: 500, color: "rgb(var(--fg))" }}>{r.agent}</span>
+                          <span style={{ textAlign: "right", fontVariantNumeric: "tabular-nums", color: "rgb(var(--fg))" }}>{n(r.resolved)}</span>
+                          <span style={{ textAlign: "right", fontVariantNumeric: "tabular-nums", color: "rgb(var(--muted))" }}>{r.avg_resolution_h != null ? n(r.avg_resolution_h).toFixed(1) : "—"}</span>
+                          <span style={{ textAlign: "right", fontVariantNumeric: "tabular-nums", color: "rgb(var(--muted))" }}>{n(r.open_load)}</span>
+                          <span style={{ textAlign: "right", fontVariantNumeric: "tabular-nums", color: "rgb(var(--muted))" }}>{n(r.on_hold_load)}</span>
+                          <span style={{ textAlign: "right", fontVariantNumeric: "tabular-nums", fontWeight: n(r.breaching) > 0 ? 600 : 400, color: n(r.breaching) > 0 ? "#FF453A" : "rgb(var(--subtle))" }}>{n(r.breaching) || "—"}</span>
+                        </Link>
+                        {r.breaching_tickets.length > 0 && (
+                          <div style={{ display: "flex", flexWrap: "wrap", gap: "5px", paddingBottom: "8px" }}>
+                            {r.breaching_tickets.map((b) => (
+                              <Link
+                                key={b.id}
+                                href={`/tickets/${encodeTicketId(b.id)}`}
+                                title={b.subject ?? undefined}
+                                style={{
+                                  display: "inline-flex",
+                                  alignItems: "center",
+                                  gap: "5px",
+                                  maxWidth: "260px",
+                                  padding: "2px 8px",
+                                  borderRadius: "999px",
+                                  fontSize: "11px",
+                                  textDecoration: "none",
+                                  background: "rgba(255,69,58,0.10)",
+                                  border: "1px solid rgba(255,69,58,0.25)",
+                                  color: "#FF453A",
+                                }}
+                              >
+                                <span style={{ fontVariantNumeric: "tabular-nums", fontWeight: 600 }}>#{b.id}</span>
+                                <span style={{ overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", color: "rgb(var(--muted))" }}>{b.subject ?? "(no subject)"}</span>
+                                <span style={{ fontVariantNumeric: "tabular-nums", color: "rgb(var(--subtle))" }}>{Number(b.over_h) >= 1 ? `+${Number(b.over_h)}h` : "just now"}</span>
+                              </Link>
+                            ))}
+                          </div>
+                        )}
+                      </div>
                     ))}
                   </div>
                 </div>

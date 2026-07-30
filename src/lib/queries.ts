@@ -301,15 +301,21 @@ export async function getSentimentBreakdown(f: TicketFilters) {
 // Scope: restricted to tickets the agent still owns, so the average covers exactly
 // the tickets in `resolved`. Mirrors Zendesk's "assignment to resolution". The
 // trade-off is that an agent's work on a ticket they later handed off leaves their
-// average entirely -- handed_off exists so that work stays visible rather than
-// silently vanishing (Zendesk pairs its metric with reassignment counts the same way).
+// average entirely.
 //
 // The customer-facing lifetime figure lives in getKpis / getSlaCompliance and
 // deliberately still measures closed_at - created_at.
-export async function getAgentPerformance(f: TicketFilters) {
+export async function getAgentPerformance(f: TicketFilters, slaHours: number) {
   const { clause, params } = buildWhere(f);
   const and = clause ? `${clause} AND` : "WHERE";
-  return query<{ agent: string; agent_id: number | null; resolved: string; avg_resolution_h: string | null; open_load: string; on_hold_load: string; handed_off: string }>(
+  params.push(slaHours);
+  const slaP = `$${params.length}`;
+  // Same breach rule as getSlaCompliance.breaching_now: open, age minus hold time
+  // past the SLA. ponytail: turnaround_at overrides are not applied here either,
+  // so the per-agent counts always add up to the "Breaching Now" KPI.
+  const breachCond = `t.status = 'open'
+            AND EXTRACT(EPOCH FROM (now() - t.created_at)) / 3600 - t.total_hold_seconds/3600.0 > ${slaP}`;
+  return query<{ agent: string; agent_id: number | null; resolved: string; avg_resolution_h: string | null; open_load: string; on_hold_load: string; breaching: string; breaching_tickets: { id: number; subject: string | null; over_h: number }[] }>(
     `WITH ticket_spans AS (
         SELECT a.user_id, a.ticket_id,
                GREATEST(EXTRACT(EPOCH FROM (LEAST(COALESCE(a.ended_at, now()), t.closed_at) - a.assigned_at)), 0) AS span_s,
@@ -325,14 +331,6 @@ export async function getAgentPerformance(f: TicketFilters) {
           FROM ticket_spans GROUP BY user_id, ticket_id
      ), per_agent AS (
         SELECT user_id, AVG(agent_h) AS agent_hours FROM per_ticket GROUP BY user_id
-     ), handed_off AS (
-        -- Tickets the agent owned at some point but no longer does. Excluded from
-        -- avg_resolution_h above, surfaced as its own count.
-        SELECT a.user_id, COUNT(DISTINCT a.ticket_id) AS handed_off
-          FROM ticket_assignments a
-          JOIN tickets t ON t.id = a.ticket_id
-          ${and} t.ticket_owner_id IS DISTINCT FROM a.user_id
-         GROUP BY a.user_id
      )
      SELECT COALESCE(u.name, 'Unassigned') AS agent,
             t.ticket_owner_id AS agent_id,
@@ -340,11 +338,21 @@ export async function getAgentPerformance(f: TicketFilters) {
             MAX(pa.agent_hours)                          AS avg_resolution_h,
             COUNT(*) FILTER (WHERE t.status = 'open')    AS open_load,
             COUNT(*) FILTER (WHERE t.status = 'on_hold') AS on_hold_load,
-            COALESCE(MAX(ho.handed_off), 0)              AS handed_off
+            COUNT(*) FILTER (WHERE ${breachCond})        AS breaching,
+            COALESCE(
+              jsonb_agg(
+                jsonb_build_object(
+                  'id', t.id,
+                  'subject', t.subject,
+                  'over_h', ROUND(EXTRACT(EPOCH FROM (now() - t.created_at)) / 3600 - t.total_hold_seconds/3600.0 - ${slaP})
+                )
+                ORDER BY t.created_at
+              ) FILTER (WHERE ${breachCond}),
+              '[]'::jsonb
+            )                                            AS breaching_tickets
        FROM tickets t
        LEFT JOIN users u ON u.id = t.ticket_owner_id
        LEFT JOIN per_agent pa ON pa.user_id = t.ticket_owner_id
-       LEFT JOIN handed_off ho ON ho.user_id = t.ticket_owner_id
        ${clause}
        GROUP BY u.name, t.ticket_owner_id ORDER BY resolved DESC`,
     params
