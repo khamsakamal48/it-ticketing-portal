@@ -68,6 +68,43 @@ function useQueueNav() {
   );
 }
 
+// Value label drawn INSIDE the donut ring. Recharts' default pie label sits
+// outside the chart box and gets clipped away in the PDF. Slices narrower than
+// ~3% have no room for a number — the legend pills carry their value instead.
+function ringLabel(p: {
+  cx?: number; cy?: number; midAngle?: number; innerRadius?: number; outerRadius?: number;
+  value?: number; percent?: number;
+}) {
+  const { cx = 0, cy = 0, midAngle = 0, innerRadius = 0, outerRadius = 0, value, percent = 0 } = p;
+  if (percent < 0.03) return <g />;
+  const rad = (-midAngle * Math.PI) / 180;
+  const r = (innerRadius + outerRadius) / 2;
+  return (
+    <text
+      x={cx + r * Math.cos(rad)}
+      y={cy + r * Math.sin(rad)}
+      fill="#fff"
+      fontSize={12}
+      fontWeight={700}
+      textAnchor="middle"
+      dominantBaseline="central"
+    >
+      {value}
+    </text>
+  );
+}
+
+// Per-point value labels on the print report's line charts. White halo behind
+// the glyphs (paint-order: stroke) keeps them readable where they land on the
+// area fill or cross the other series.
+const POINT_LABEL = {
+  fontSize: 10,
+  fontWeight: 700,
+  stroke: "#fff",
+  strokeWidth: 3,
+  paintOrder: "stroke" as const,
+};
+
 // Skill leadership-deck vibrant palette for the status donut
 const SKILL_STATUS_COLORS: Record<string, { fill: string; glow: string; bg: string; text: string; border: string }> = {
   open:     { fill: "#0A84FF", glow: "rgba(10,132,255,0.40)",  bg: "rgba(10,132,255,0.10)",  text: "#0A84FF", border: "rgba(10,132,255,0.25)"  },
@@ -191,9 +228,12 @@ export function TrendLine({ data, linkByDay, showValues }: { data: { day: string
     <ResponsiveContainer width="100%" height="100%">
       <AreaChart data={data} onClick={onClick} style={linkByDay ? { cursor: "pointer" } : undefined} margin={{ top: 5, right: 10, left: 4, bottom: 8 }}>
         <defs>
+          {/* Print only: the gradient is anchored to the area's bounding box, so a 0
+              bottom stop makes the fill vanish wherever the curve runs low — reads as
+              "gradient missing" on the white PDF. On screen the fade-to-nothing stays. */}
           <linearGradient id="trendFill" x1="0" y1="0" x2="0" y2="1">
             <stop offset="0%" stopColor={lineColor} stopOpacity={0.30} />
-            <stop offset="100%" stopColor={lineColor} stopOpacity={0} />
+            <stop offset="100%" stopColor={lineColor} stopOpacity={showValues ? 0.07 : 0} />
           </linearGradient>
         </defs>
         <CartesianGrid strokeDasharray="3 3" stroke={t.grid} vertical={false} />
@@ -209,8 +249,10 @@ export function TrendLine({ data, linkByDay, showValues }: { data: { day: string
           fill="url(#trendFill)"
           dot={showValues ? { r: 2.5, strokeWidth: 0, fill: lineColor } : false}
           activeDot={{ r: 4, strokeWidth: 0, fill: lineColor }}
-          label={showValues ? { position: "top", fill: "#0B1220", fontSize: 11, offset: 10 } : undefined}
-        />
+          isAnimationActive={!showValues}
+        >
+          {showValues && <LabelList dataKey="count" position="top" offset={8} fill="#0B1220" {...POINT_LABEL} />}
+        </Area>
       </AreaChart>
     </ResponsiveContainer>
   );
@@ -244,8 +286,10 @@ export function StatusPie({ data, linkParam, showValues }: { data: { name: strin
               innerRadius={74}
               outerRadius={106}
               paddingAngle={showValues ? 0 : 3}
+              // PDF snapshot can land mid-animation, leaving a phantom wedge. No animation in print.
+              isAnimationActive={!showValues}
               stroke="none"
-              label={showValues ? (p: { value?: number }) => `${p.value}` : undefined}
+              label={showValues ? ringLabel : undefined}
               labelLine={showValues ? false : undefined}
               onClick={linkParam ? (d: { name?: string }) => d?.name && nav({ [linkParam]: d.name }) : undefined}
               style={linkParam ? { cursor: "pointer" } : undefined}
@@ -364,7 +408,7 @@ export function AgentBars({
         <XAxis type="number" tick={{ fontSize: 11, fill: t.axis }} stroke={t.grid} allowDecimals={false} />
         <YAxis type="category" dataKey="agent" tick={<SingleLineTick fill={t.fg} fontSize={13} />} stroke={t.grid} width={140} interval={0} />
         <Tooltip content={<ChartTooltip />} cursor={{ fill: t.grid, opacity: 0.4 }} />
-        <Bar dataKey="count" name="Tickets" fill="url(#barGrad)" radius={[0, 6, 6, 0]} maxBarSize={22} onClick={onBar} style={onBar ? { cursor: "pointer" } : undefined}>
+        <Bar dataKey="count" name="Tickets" fill="url(#barGrad)" radius={[0, 6, 6, 0]} maxBarSize={22} onClick={onBar} style={onBar ? { cursor: "pointer" } : undefined} isAnimationActive={!showValues}>
           {showValues && <LabelList dataKey="count" position="right" style={{ fontSize: 11, fontWeight: 700, fill: t.fg }} />}
         </Bar>
       </BarChart>
@@ -398,19 +442,23 @@ export function FlowTrend({ data, linkByDay, showValues }: { data: { day: string
             <defs>
               <linearGradient id="flowCreated" x1="0" y1="0" x2="0" y2="1">
                 <stop offset="0%" stopColor="#0A84FF" stopOpacity={0.28} />
-                <stop offset="100%" stopColor="#0A84FF" stopOpacity={0} />
+                <stop offset="100%" stopColor="#0A84FF" stopOpacity={showValues ? 0.07 : 0} />
               </linearGradient>
               <linearGradient id="flowClosed" x1="0" y1="0" x2="0" y2="1">
                 <stop offset="0%" stopColor="#30D158" stopOpacity={0.24} />
-                <stop offset="100%" stopColor="#30D158" stopOpacity={0} />
+                <stop offset="100%" stopColor="#30D158" stopOpacity={showValues ? 0.06 : 0} />
               </linearGradient>
             </defs>
             <CartesianGrid strokeDasharray="3 3" stroke={t.grid} vertical={false} />
             <XAxis dataKey="day" tick={{ fontSize: 11, fill: t.axis }} stroke={t.grid} tickLine={false} tickMargin={10} tickFormatter={formatDayTick} />
             <YAxis tick={{ fontSize: 11, fill: t.axis }} stroke={t.grid} tickLine={false} tickMargin={8} allowDecimals={false} width={44} />
             <Tooltip content={<ChartTooltip />} cursor={{ stroke: t.grid }} />
-            <Area type="monotone" dataKey="created" name="Inflow"  stroke="#0A84FF" strokeWidth={2.5} fill="url(#flowCreated)" dot={showValues ? { r: 2.5, strokeWidth: 0, fill: "#0A84FF" } : false} activeDot={{ r: 4, strokeWidth: 0, fill: "#0A84FF" }} label={showValues ? { position: "top", fill: "#0A6DD1", fontSize: 11, offset: 10 } : undefined} />
-            <Area type="monotone" dataKey="closed"  name="Outflow" stroke="#30D158" strokeWidth={2.5} fill="url(#flowClosed)"   dot={showValues ? { r: 2.5, strokeWidth: 0, fill: "#30D158" } : false} activeDot={{ r: 4, strokeWidth: 0, fill: "#30D158" }} label={showValues ? { position: "bottom", fill: "#1c8f3c", fontSize: 11, offset: 10 } : undefined} />
+            <Area type="monotone" dataKey="created" name="Inflow"  stroke="#0A84FF" strokeWidth={2.5} fill="url(#flowCreated)" dot={showValues ? { r: 2.5, strokeWidth: 0, fill: "#0A84FF" } : false} activeDot={{ r: 4, strokeWidth: 0, fill: "#0A84FF" }} isAnimationActive={!showValues}>
+              {showValues && <LabelList dataKey="created" position="top" offset={8} fill="#0A6DD1" {...POINT_LABEL} />}
+            </Area>
+            <Area type="monotone" dataKey="closed"  name="Outflow" stroke="#30D158" strokeWidth={2.5} fill="url(#flowClosed)"   dot={showValues ? { r: 2.5, strokeWidth: 0, fill: "#30D158" } : false} activeDot={{ r: 4, strokeWidth: 0, fill: "#30D158" }} isAnimationActive={!showValues}>
+              {showValues && <LabelList dataKey="closed" position="bottom" offset={8} fill="#1c8f3c" {...POINT_LABEL} />}
+            </Area>
           </AreaChart>
         </ResponsiveContainer>
       </div>
@@ -507,7 +555,7 @@ export function BucketBars({
         <XAxis type="number" tick={{ fontSize: 11, fill: t.axis }} stroke={t.grid} allowDecimals={false} />
         <YAxis type="category" dataKey="label" tick={<SingleLineTick fill={t.fg} />} stroke={t.grid} width={labelWidth} interval={0} />
         <Tooltip content={<ChartTooltip />} cursor={{ fill: t.grid, opacity: 0.4 }} />
-        <Bar dataKey="count" name="Tickets" fill="url(#bucketGrad)" radius={[0, 6, 6, 0]} maxBarSize={22} onClick={onBar} style={onBar ? { cursor: "pointer" } : undefined}>
+        <Bar dataKey="count" name="Tickets" fill="url(#bucketGrad)" radius={[0, 6, 6, 0]} maxBarSize={22} onClick={onBar} style={onBar ? { cursor: "pointer" } : undefined} isAnimationActive={!showValues}>
           {showValues && <LabelList dataKey="count" position="right" style={{ fontSize: 11, fontWeight: 700, fill: t.fg }} />}
         </Bar>
       </BarChart>
@@ -561,8 +609,10 @@ export function DonutBreakdown({
               innerRadius={74}
               outerRadius={106}
               paddingAngle={showValues ? 0 : 3}
+              // PDF snapshot can land mid-animation, leaving a phantom wedge. No animation in print.
+              isAnimationActive={!showValues}
               stroke="none"
-              label={showValues ? (p: { value?: number }) => `${p.value}` : undefined}
+              label={showValues ? ringLabel : undefined}
               labelLine={showValues ? false : undefined}
               onClick={linkParam ? (d: { name?: string }) => d?.name && go(d.name) : undefined}
               style={linkParam ? { cursor: "pointer" } : undefined}

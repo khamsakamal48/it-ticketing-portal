@@ -48,7 +48,12 @@ export function TicketCard({
   const elapsed = isClosed
     ? hoursBetween(t.created_at, t.updated_at)
     : hoursBetween(t.created_at);
-  const breached = elapsed != null && elapsed > slaHours;
+  // An agent-set turnaround_at (custom TAT agreed with the customer) replaces the
+  // default slaHours deadline. Mirrors `breachedNow` in queries.ts.
+  const deadline = t.turnaround_at
+    ? hoursBetween(t.created_at, t.turnaround_at)
+    : slaHours;
+  const breached = elapsed != null && deadline != null && elapsed > deadline;
   const durationLabel = isClosed
     ? `Closed in ${fmtDurationHours(elapsed)}`
     : `Open ${fmtDurationHours(elapsed)}`;

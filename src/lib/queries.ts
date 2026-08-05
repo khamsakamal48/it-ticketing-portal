@@ -28,6 +28,15 @@ const AGE_BUCKET_SQL: Record<string, string> = {
   ">7d": "now() - t.created_at >= interval '7 days'",
 };
 
+// Effective SLA deadline for a ticket: an agent-set turnaround_at (custom TAT
+// agreed with the customer) replaces the default N-hour clock. `slaP` is the
+// $n placeholder holding the default SLA hours.
+const dueAt = (slaP: string) =>
+  `COALESCE(t.turnaround_at, t.created_at + INTERVAL '1 hour' * ${slaP}::numeric)`;
+// Open ticket past its deadline, with time parked on_hold added back on.
+const breachedNow = (slaP: string) =>
+  `now() - INTERVAL '1 second' * t.total_hold_seconds > ${dueAt(slaP)}`;
+
 // Builds a parameterised WHERE clause + params array from filters.
 function buildWhere(f: TicketFilters): { clause: string; params: unknown[] } {
   const conds: string[] = [];
@@ -61,7 +70,8 @@ function buildWhere(f: TicketFilters): { clause: string; params: unknown[] } {
       "EXISTS (SELECT 1 FROM contacts c WHERE c.id = t.contact_id AND c.email = $?)",
       f.requester
     );
-  if (f.minAgeH != null) add("EXTRACT(EPOCH FROM (now() - t.created_at)) / 3600 > $?", f.minAgeH);
+  // Same rule as the "Breaching Now" KPI so the drill-down list matches the count.
+  if (f.minAgeH != null) add(breachedNow("$?"), f.minAgeH);
   if (f.ageBucket && AGE_BUCKET_SQL[f.ageBucket]) conds.push(`(${AGE_BUCKET_SQL[f.ageBucket]})`);
   if (f.search) {
     // Match subject (fuzzy) OR exact ticket id. Two placeholders, one value.
@@ -236,19 +246,20 @@ export async function getSlaCompliance(f: TicketFilters, slaHours: number) {
   params.push(slaHours);
   const slaP = `$${params.length}`;
   const row = await query<{ resolved_within: string; total_closed: string; breaching_now: string }>(
-    // Both compliance and live-breach use elapsed time MINUS time spent on hold
-    // (total_hold_seconds). on_hold / irrelevant tickets never count as breaching
+    // Both compliance and live-breach measure against the effective deadline
+    // (agent-set turnaround_at, else created_at + SLA hours), with time spent on
+    // hold added back on. on_hold / irrelevant tickets never count as breaching
     // (status = 'open' guard excludes them).
     `SELECT
         COUNT(*) FILTER (
-          WHERE status = 'closed'
-            AND closed_at IS NOT NULL
-            AND EXTRACT(EPOCH FROM (closed_at - created_at)) / 3600 - total_hold_seconds/3600.0 <= ${slaP}
+          WHERE t.status = 'closed'
+            AND t.closed_at IS NOT NULL
+            AND t.closed_at - INTERVAL '1 second' * t.total_hold_seconds <= ${dueAt(slaP)}
         )                                                    AS resolved_within,
-        COUNT(*) FILTER (WHERE status = 'closed')            AS total_closed,
+        COUNT(*) FILTER (WHERE t.status = 'closed')          AS total_closed,
         COUNT(*) FILTER (
-          WHERE status = 'open'
-            AND EXTRACT(EPOCH FROM (now() - created_at)) / 3600 - total_hold_seconds/3600.0 > ${slaP}
+          WHERE t.status = 'open'
+            AND ${breachedNow(slaP)}
         )                                                    AS breaching_now
        FROM tickets t ${clause}`,
     params
@@ -310,11 +321,9 @@ export async function getAgentPerformance(f: TicketFilters, slaHours: number) {
   const and = clause ? `${clause} AND` : "WHERE";
   params.push(slaHours);
   const slaP = `$${params.length}`;
-  // Same breach rule as getSlaCompliance.breaching_now: open, age minus hold time
-  // past the SLA. ponytail: turnaround_at overrides are not applied here either,
-  // so the per-agent counts always add up to the "Breaching Now" KPI.
-  const breachCond = `t.status = 'open'
-            AND EXTRACT(EPOCH FROM (now() - t.created_at)) / 3600 - t.total_hold_seconds/3600.0 > ${slaP}`;
+  // Same breach rule as getSlaCompliance.breaching_now (shared `breachedNow`), so
+  // the per-agent counts always add up to the "Breaching Now" KPI.
+  const breachCond = `t.status = 'open' AND ${breachedNow(slaP)}`;
   return query<{ agent: string; agent_id: number | null; resolved: string; avg_resolution_h: string | null; open_load: string; on_hold_load: string; breaching: string }>(
     `WITH ticket_spans AS (
         SELECT a.user_id, a.ticket_id,
@@ -373,6 +382,7 @@ export interface TicketRow {
   created_at: string;
   updated_at: string;
   escalation_level: number;
+  turnaround_at: string | null;
 }
 
 export async function listTickets(
@@ -397,7 +407,7 @@ export async function listTickets(
     `SELECT t.id, t.subject, t.status, t.priority,
             u.name AS owner_name, t.ticket_owner_id AS owner_id,
             c.email AS contact_email,
-            t.created_at, t.updated_at, t.escalation_level
+            t.created_at, t.updated_at, t.escalation_level, t.turnaround_at
        FROM tickets t
        LEFT JOIN users u ON u.id = t.ticket_owner_id
        LEFT JOIN contacts c ON c.id = t.contact_id
