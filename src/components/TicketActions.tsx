@@ -14,7 +14,12 @@ import {
   type ActionResult,
 } from "@/app/tickets/actions";
 import type { ParsedOriginal } from "@/lib/forwarded-email";
-import { UNDO_CLOSE_WINDOW_SECONDS } from "@/lib/ticket-rules";
+import {
+  UNDO_CLOSE_WINDOW_SECONDS,
+  HOLD_REASONS,
+  HOLD_DURATION_DAYS,
+  HOLD_DURATION_LABELS,
+} from "@/lib/ticket-rules";
 
 interface Agent {
   id: number;
@@ -96,6 +101,9 @@ export function TicketActions({
   const [undoLeft, setUndoLeft] = useState(0);
   // Shared note echoed into the On Hold / turnaround notification email.
   const [statusNote, setStatusNote] = useState("");
+  // Required before switching to On Hold: who it waits on + how long.
+  const [holdReason, setHoldReason] = useState("");
+  const [holdDays, setHoldDays] = useState("");
   const [tat, setTat] = useState(toLocalInput(turnaroundAt));
 
   // --- Correct requester + original date ---
@@ -147,6 +155,11 @@ export function TicketActions({
   // Status and assignment both email people, so both confirm before firing.
   const onStatusChange = (next: string) => {
     if (next === status) return;
+    if (next === "on_hold" && (!holdReason || !holdDays)) {
+      setStatusSel(status);
+      setMsg({ tone: "err", text: "Pick who the ticket is waiting on and the hold duration first." });
+      return;
+    }
     const ok = window.confirm(
       `Change ticket #${ticketId} from "${STATUS_LABELS[status] ?? status}" to "${
         STATUS_LABELS[next] ?? next
@@ -158,9 +171,18 @@ export function TicketActions({
     }
     setStatusSel(next);
     run(
-      () => changeStatus(ticketId, next, updatedAt, statusNote),
+      () =>
+        changeStatus(
+          ticketId,
+          next,
+          updatedAt,
+          statusNote,
+          next === "on_hold" ? { reason: holdReason, days: Number(holdDays) } : undefined
+        ),
       () => {
         setStatusNote("");
+        setHoldReason("");
+        setHoldDays("");
         if (next === "closed") setUndoLeft(UNDO_CLOSE_WINDOW_SECONDS);
       }
     );
@@ -460,10 +482,47 @@ export function TicketActions({
             <option value="irrelevant">Irrelevant</option>
           </select>
           <p className="mt-1 text-xs text-subtle">
-            Closing requires an owner. On Hold pauses all SLA timers. Irrelevant hides the ticket from dashboards.
+            Closing requires an owner. On Hold pauses SLA alerts; Business/Vendor hold time is also
+            excluded from turnaround. Irrelevant hides the ticket from dashboards.
             {status === "closed" && !canReopen && " Only a manager can reopen a closed ticket."}
           </p>
         </div>
+
+        {/* Hold details — required before choosing On Hold above */}
+        {status !== "on_hold" && (
+          <div className="grid grid-cols-2 gap-2">
+            <div>
+              <label className="label" htmlFor="ta-hold-reason">Hold: waiting on</label>
+              <select
+                id="ta-hold-reason"
+                className="input w-full"
+                value={holdReason}
+                disabled={pending}
+                onChange={(e) => setHoldReason(e.target.value)}
+              >
+                <option value="">Select…</option>
+                {Object.entries(HOLD_REASONS).map(([v, l]) => (
+                  <option key={v} value={v}>{l}</option>
+                ))}
+              </select>
+            </div>
+            <div>
+              <label className="label" htmlFor="ta-hold-days">Hold for</label>
+              <select
+                id="ta-hold-days"
+                className="input w-full"
+                value={holdDays}
+                disabled={pending}
+                onChange={(e) => setHoldDays(e.target.value)}
+              >
+                <option value="">Select…</option>
+                {HOLD_DURATION_DAYS.map((d) => (
+                  <option key={d} value={d}>{HOLD_DURATION_LABELS[d]}</option>
+                ))}
+              </select>
+            </div>
+          </div>
+        )}
 
         {/* Status note (sent to requester + manager on On Hold / turnaround) */}
         <div>

@@ -19,6 +19,7 @@ import { decodeTicketId } from "@/lib/ticket-id";
 import { isHtmlBody, sanitizeEmailHtml } from "@/lib/sanitize-email";
 import { parseForwardedOriginal } from "@/lib/forwarded-email";
 import { auth, isManager } from "@/lib/auth";
+import { HOLD_REASONS, type HoldReason } from "@/lib/ticket-rules";
 
 export const dynamic = "force-dynamic";
 
@@ -87,8 +88,9 @@ export default async function TicketDetail({
   };
 
   // Cumulative hold time (subtracted from resolution). Include any still-open hold
-  // span so an in-progress hold is reflected too.
-  const openHoldSeconds = ticket.on_hold_since
+  // span so an in-progress hold is reflected too — unless it is an Agent hold,
+  // which counts against TAT and is never subtracted.
+  const openHoldSeconds = ticket.on_hold_since && ticket.hold_reason !== "agent"
     ? Math.max(0, (Date.now() - new Date(ticket.on_hold_since).getTime()) / 1000)
     : 0;
   const holdHours = (Number(ticket.total_hold_seconds ?? 0) + openHoldSeconds) / 3600;
@@ -111,6 +113,12 @@ export default async function TicketDetail({
             </h2>
             <div className="mt-2.5 flex flex-wrap items-center gap-2 text-sm text-subtle">
               <StatusBadge status={ticket.status} />
+              {ticket.status === "on_hold" && ticket.hold_reason && (
+                <span className="badge bg-pending/10 text-pending ring-1 ring-inset ring-pending/20">
+                  waiting on {HOLD_REASONS[ticket.hold_reason as HoldReason] ?? ticket.hold_reason}
+                  {ticket.hold_until && ` · until ${fmtIST(ticket.hold_until)}`}
+                </span>
+              )}
               <PriorityBadge priority={ticket.priority} />
               <span className="text-border-strong">·</span>
               <span>{ticket.contact_email ?? "unknown contact"}</span>

@@ -84,6 +84,32 @@ export function assertCanReopen(isManagerRole: boolean, isOwnRecentClose: boolea
   );
 }
 
+// On Hold must say who the ticket is waiting on and for how long (team process,
+// 23 Sep 2026). business/vendor hold time is excluded from TAT; agent hold time
+// counts. Durations are a fixed list on purpose — free-form days invite
+// whatever number is convenient.
+export const HOLD_REASONS = {
+  business: "Business",
+  vendor: "Vendor",
+  agent: "Agent",
+} as const;
+export type HoldReason = keyof typeof HOLD_REASONS;
+
+export const HOLD_DURATION_DAYS = [2, 7, 14, 28] as const;
+export const HOLD_DURATION_LABELS: Record<number, string> = {
+  2: "2 days",
+  7: "1 week",
+  14: "2 weeks",
+  28: "4 weeks",
+};
+
+export function assertHold(reason: string | undefined, days: number | undefined): asserts reason is HoldReason {
+  if (!reason || !(reason in HOLD_REASONS))
+    throw new RuleError("Pick who the ticket is waiting on (Business, Vendor or Agent).");
+  if (!(HOLD_DURATION_DAYS as readonly number[]).includes(Number(days)))
+    throw new RuleError("Pick how long to hold the ticket.");
+}
+
 // Priority keyword classifier — identical lists to the n8n "Process Ticket Data" node.
 const URGENT = ["urgent", "critical", "emergency", "asap", "immediately", "p0", "p1", "outage", "down", "broken", "blocker"];
 const HIGH = ["important", "high priority", "escalate", "deadline", "p2", "not working", "bug", "error", "fail"];

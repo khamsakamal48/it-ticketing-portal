@@ -18,6 +18,7 @@ import {
   assertOwnerRequiredForClose,
   assertOwnerRequiredForReply,
   assertCanReopen,
+  assertHold,
   isValidPriority,
   isValidStatus,
   RuleError,
@@ -173,17 +174,20 @@ export async function reassignTicket(
 
 // Accrues elapsed hold time into total_hold_seconds for the row, as part of a
 // status-leaving UPDATE. When the row is NOT on hold this adds 0, so it is
-// always safe to include. Does NOT touch on_hold_since — callers that also need
+// always safe to include. Agent holds (IT's own wait) are NOT accrued — that
+// time counts against TAT. NULL reason = legacy hold, accrued as before.
+// Mirrored in the n8n "Close and Assign Ticket" node. Does NOT touch on_hold_since — callers that also need
 // to assign on_hold_since must do so once, in a single SET clause, to avoid a
 // "multiple assignments to same column" error.
 const ACCRUE_HOLD_SECONDS =
   `total_hold_seconds = total_hold_seconds + CASE WHEN on_hold_since IS NOT NULL ` +
+  `AND hold_reason IS DISTINCT FROM 'agent' ` +
   `THEN EXTRACT(EPOCH FROM (NOW() - on_hold_since))::bigint ELSE 0 END`;
 
 // Closes any open hold span (adds elapsed hold time to total_hold_seconds and
 // clears on_hold_since) for the row, as part of a status-leaving UPDATE. When
 // the row is NOT on hold this adds 0, so it is always safe to include.
-const ACCRUE_HOLD = `${ACCRUE_HOLD_SECONDS}, on_hold_since = NULL`;
+const ACCRUE_HOLD = `${ACCRUE_HOLD_SECONDS}, on_hold_since = NULL, hold_reason = NULL, hold_until = NULL`;
 
 // Inserts an agent's customer-visible status note (echoed into the n8n
 // notification email). Skipped silently when the note is blank.
@@ -201,11 +205,18 @@ async function insertStatusNote(client: PoolClient, ticketId: number, note?: str
 // first_agent_reply_at (first agent touch), and closes any open hold span so
 // on-hold time is excluded from the resolution calc. Shared by changeStatus and
 // sendReply's "send & close".
+// closed_no_response: closing a held ticket after its 2nd hold reminder
+// (reminder_level 23, sent by n8n this hold span) went unanswered. n8n reopens
+// those on any reply within 30 days. Evaluated against the pre-update row.
 async function closeTicketRow(client: PoolClient, ticketId: number) {
   await client.query(
     `UPDATE tickets SET status = 'closed', updated_at = NOW(), closed_at = NOW(),
             last_agent_reply_at = NOW(),
             first_agent_reply_at = COALESCE(first_agent_reply_at, NOW()),
+            closed_no_response = (on_hold_since IS NOT NULL AND EXISTS (
+              SELECT 1 FROM reminder_tracking rt
+               WHERE rt.ticket_id = tickets.id AND rt.reminder_level = 23
+                 AND rt.sent_at >= tickets.on_hold_since)),
             ${ACCRUE_HOLD}
        WHERE id = $1`,
     [ticketId]
@@ -383,17 +394,20 @@ export async function correctRequester(
 
 // ---------------- Status change ----------------
 // `note` is optional and only meaningful when moving to on_hold — it is stored
-// as a status note and echoed into the requester/manager email.
+// as a status note and echoed into the requester/manager email. `hold` is
+// required when moving to on_hold: who it waits on + a duration from the list.
 export async function changeStatus(
   ticketId: number,
   newStatus: string,
   expectedUpdatedAt: string,
-  note?: string
+  note?: string,
+  hold?: { reason: string; days: number }
 ): Promise<ActionResult> {
   return wrap(
     (async () => {
       const actor = await requireActor();
       if (!isValidStatus(newStatus)) throw new RuleError("Invalid status.");
+      if (newStatus === "on_hold") assertHold(hold?.reason, hold?.days);
       const effect = await withTransaction(async (client) => {
         const t = await lockTicket(client, ticketId, expectedUpdatedAt);
         assertTransition(t.status, newStatus);
@@ -414,13 +428,18 @@ export async function changeStatus(
           // $1 is cast to ::text in every use so Postgres deduces one consistent
           // parameter type (it's both assigned to a varchar column and compared
           // against text literals).
+          // hold_reason/hold_until: set on entering on_hold, cleared otherwise.
           await client.query(
             `UPDATE tickets SET status = $1::text, updated_at = NOW(),
                     closed_at = CASE WHEN $1::text = 'open' THEN NULL ELSE closed_at END,
+                    closed_no_response = false,
                     ${ACCRUE_HOLD_SECONDS},
-                    on_hold_since = CASE WHEN $1::text = 'on_hold' THEN NOW() ELSE NULL END
+                    on_hold_since = CASE WHEN $1::text = 'on_hold' THEN NOW() ELSE NULL END,
+                    hold_reason = CASE WHEN $1::text = 'on_hold' THEN $3::text ELSE NULL END,
+                    hold_until = CASE WHEN $1::text = 'on_hold'
+                                      THEN NOW() + ($4::int * INTERVAL '1 day') ELSE NULL END
                WHERE id = $2`,
-            [newStatus, ticketId]
+            [newStatus, ticketId, hold?.reason ?? null, hold?.days ?? null]
           );
         }
         if (newStatus === "on_hold") await insertStatusNote(client, ticketId, note);
@@ -443,7 +462,7 @@ export async function changeStatus(
           action,
           field: "status",
           oldValue: t.status,
-          newValue: newStatus,
+          newValue: newStatus === "on_hold" ? `on_hold (${hold!.reason}, ${hold!.days}d)` : newStatus,
         });
         // Carry context out of the txn so we can notify n8n AFTER commit.
         if (action === "close") return { kind: "close" as const, contactEmail: t.contact_email, subject: t.subject };
@@ -465,6 +484,8 @@ export async function changeStatus(
           subject: effect.subject,
           note: note?.trim() || null,
           actorEmail: actor.email,
+          holdReason: hold!.reason,
+          holdDays: hold!.days,
         });
         if (result.configured && !result.sent)
           return {
