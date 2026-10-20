@@ -105,6 +105,7 @@ export function TicketActions({
   const [holdReason, setHoldReason] = useState("");
   const [holdDays, setHoldDays] = useState("");
   const [tat, setTat] = useState(toLocalInput(turnaroundAt));
+  const holdPending = statusSel === "on_hold" && status !== "on_hold";
 
   // --- Correct requester + original date ---
   // If auto-detection found a requester not already in contacts, default to the
@@ -153,20 +154,33 @@ export function TicketActions({
   }, [undoLeft]);
 
   // Status and assignment both email people, so both confirm before firing.
+  // On Hold is two-step: picking it reveals the hold fields + a confirm button
+  // (applyStatus runs from there); every other status applies immediately.
   const onStatusChange = (next: string) => {
-    if (next === status) return;
-    if (next === "on_hold" && (!holdReason || !holdDays)) {
-      setStatusSel(status);
-      setMsg({ tone: "err", text: "Pick who the ticket is waiting on and the hold duration first." });
+    if (next === status) return setStatusSel(status);
+    if (next === "on_hold") {
+      setMsg(null);
+      setStatusSel(next);
       return;
     }
+    applyStatus(next);
+  };
+
+  const cancelHold = () => {
+    setStatusSel(status);
+    setHoldReason("");
+    setHoldDays("");
+  };
+
+  const applyStatus = (next: string) => {
     const ok = window.confirm(
       `Change ticket #${ticketId} from "${STATUS_LABELS[status] ?? status}" to "${
         STATUS_LABELS[next] ?? next
       }"?`
     );
     if (!ok) {
-      setStatusSel(status);
+      // Declining the hold confirm keeps the hold form open with its picks.
+      if (next !== "on_hold") setStatusSel(status);
       return;
     }
     setStatusSel(next);
@@ -488,8 +502,8 @@ export function TicketActions({
           </p>
         </div>
 
-        {/* Hold details — required before choosing On Hold above */}
-        {status !== "on_hold" && (
+        {/* Hold details — shown once On Hold is picked above, applied by the button below the note */}
+        {holdPending && (
           <div className="grid grid-cols-2 gap-2">
             <div>
               <label className="label" htmlFor="ta-hold-reason">Hold: waiting on</label>
@@ -536,6 +550,20 @@ export function TicketActions({
             onChange={(e) => setStatusNote(e.target.value)}
             placeholder="Included in the email when you set On Hold or a turnaround date…"
           />
+          {holdPending && (
+            <div className="mt-2 flex gap-2">
+              <button
+                className="btn-primary flex-1"
+                disabled={pending || !holdReason || !holdDays}
+                onClick={() => applyStatus("on_hold")}
+              >
+                {pending ? "Saving…" : "Put on hold"}
+              </button>
+              <button className="btn-ghost flex-1" disabled={pending} onClick={cancelHold}>
+                Cancel
+              </button>
+            </div>
+          )}
         </div>
 
         {/* Priority */}
