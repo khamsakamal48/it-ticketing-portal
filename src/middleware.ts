@@ -14,7 +14,12 @@ export default auth(async (req) => {
   const isPublic =
     pathname.startsWith("/api/auth") ||
     pathname === "/signin" ||
-    pathname === "/api/health";
+    pathname === "/api/health" ||
+    // Post-closure CSAT survey: requesters are not portal users. The page and
+    // its APIs authenticate by the unguessable per-survey token (or, for the
+    // Outlook card, a Microsoft-signed JWT) instead of a session.
+    pathname.startsWith("/f/") ||
+    pathname.startsWith("/api/feedback");
 
   if (isPublic) return NextResponse.next();
 

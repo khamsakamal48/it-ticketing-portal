@@ -14,7 +14,9 @@ import {
   DonutBreakdown,
   PRIORITY_PALETTE,
   SENTIMENT_PALETTE,
+  CSAT_PALETTE,
 } from "@/components/charts";
+import { CsatDrivers, RecentFeedback, RATING_SLUG } from "@/components/CsatPanels";
 import { KpiCard } from "@/components/KpiCard";
 import { DailyStatusBanner } from "@/components/DailyStatusBanner";
 import { ReportReady } from "@/components/ReportReady";
@@ -33,6 +35,10 @@ import {
   Flame,
   PauseCircle,
   TrendingUp,
+  Smile,
+  Star,
+  MailCheck,
+  ThumbsDown,
 } from "lucide-react";
 import {
   getKpis,
@@ -49,6 +55,10 @@ import {
   getSentimentBreakdown,
   getTopRequesters,
   getLatestDailyStatus,
+  getCsatSummary,
+  getCsatBreakdown,
+  getCsatDrivers,
+  getRecentFeedback,
 } from "@/lib/queries";
 
 export const dynamic = "force-dynamic";
@@ -79,6 +89,10 @@ export default async function DashboardReportPage({
     sentiment,
     requesters,
     dailyStatus,
+    csat,
+    csatBreakdown,
+    csatDrivers,
+    recentFeedback,
   ] = await Promise.all([
     getKpis(f),
     getStatusBreakdown(f),
@@ -94,6 +108,10 @@ export default async function DashboardReportPage({
     getSentimentBreakdown(f),
     getTopRequesters(f),
     getLatestDailyStatus(),
+    getCsatSummary(f),
+    getCsatBreakdown(f),
+    getCsatDrivers(f),
+    getRecentFeedback(f, 6),
   ]);
 
   const n = (v: string | null | undefined) => Number(v ?? 0);
@@ -114,6 +132,13 @@ export default async function DashboardReportPage({
   const breachingNow = n(sla?.breaching_now);
   const netDelta = n(netBacklog?.created) - n(netBacklog?.closed);
   const netLabel = netDelta > 0 ? `+${netDelta}` : `${netDelta}`;
+
+  const csatResponded = n(csat?.responded);
+  const csatSent = n(csat?.sent);
+  const csatPct = csatResponded > 0 ? `${Math.round((n(csat?.satisfied) / csatResponded) * 100)}%` : "—";
+  const csatAvg = csat?.avg_rating != null ? n(csat.avg_rating).toFixed(1) : "—";
+  const csatRate = csatSent > 0 ? `${Math.round((csatResponded / csatSent) * 100)}%` : "—";
+  const csatLow = csatBreakdown.filter((r) => Number(r.rating) <= 2).reduce((s, r) => s + n(r.count), 0);
 
   const AGING_ORDER = ["0-1d", "1-3d", "3-7d", ">7d"];
   const agingData = AGING_ORDER
@@ -230,6 +255,33 @@ export default async function DashboardReportPage({
               labelWidth={150}
               showValues
             />
+          </ChartCard>
+        </div>
+
+        {/* Customer feedback (CSAT) */}
+        <div className="grid grid-cols-4 gap-3">
+          <KpiCard label="CSAT" value={csatPct} sub={`${n(csat?.satisfied)} of ${csatResponded} rated 4–5`} accent="green" icon={Smile} hero />
+          <KpiCard label="Avg Rating" value={csatAvg} sub="out of 5" accent="blue" icon={Star} hero />
+          <KpiCard label="Response Rate" value={csatRate} sub={`${csatResponded} of ${csatSent} surveys`} accent="slate" icon={MailCheck} hero />
+          <KpiCard label="Low Scores" value={csatLow} sub="rated 1–2" accent="red" icon={ThumbsDown} hero />
+        </div>
+
+        <div className="grid grid-cols-3 gap-4">
+          <ChartCard title="Satisfaction" chartHeight={300}>
+            <DonutBreakdown
+              data={csatBreakdown.map((r) => ({ name: RATING_SLUG[Number(r.rating)], value: Number(r.count) }))}
+              palette={CSAT_PALETTE}
+              emptyMsg="No survey answers yet."
+              showValues
+            />
+          </ChartCard>
+          <ChartCard title="Feedback drivers" chartHeight={300}>
+            <CsatDrivers data={csatDrivers.map((r) => ({ reason: r.reason, positive: r.positive, count: Number(r.count) }))} />
+          </ChartCard>
+          <ChartCard title="Recent feedback" chartHeight={300}>
+            <div className="h-full overflow-hidden">
+              <RecentFeedback rows={recentFeedback} />
+            </div>
           </ChartCard>
         </div>
       </div>

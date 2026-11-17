@@ -357,6 +357,122 @@ export async function getAgentPerformance(f: TicketFilters, slaHours: number) {
   );
 }
 
+// ---------------- CSAT feedback (db/009) ----------------
+// Every CSAT figure uses the LATEST survey per ticket (a reopened + re-closed
+// ticket gets a fresh survey; its newest answer supersedes the old one), scoped
+// by the standard ticket filters so the cards move with the date range.
+// "Satisfied" = rating 4 or 5 (industry-standard CSAT %). Scores are credited to
+// the agent who owned the ticket at closure (ticket_feedback.agent_id).
+const latestFeedbackCte = (clause: string) => `
+  latest_fb AS (
+    SELECT DISTINCT ON (fb.ticket_id) fb.*
+      FROM ticket_feedback fb
+      JOIN tickets t ON t.id = fb.ticket_id
+      ${clause}
+     ORDER BY fb.ticket_id, fb.sent_at DESC
+  )`;
+
+export async function getCsatSummary(f: TicketFilters) {
+  const { clause, params } = buildWhere(f);
+  const row = await query<{ sent: string; responded: string; satisfied: string; avg_rating: string | null }>(
+    `WITH ${latestFeedbackCte(clause)}
+     SELECT COUNT(*)                                   AS sent,
+            COUNT(*) FILTER (WHERE rating IS NOT NULL) AS responded,
+            COUNT(*) FILTER (WHERE rating >= 4)        AS satisfied,
+            AVG(rating)                                AS avg_rating
+       FROM latest_fb`,
+    params
+  );
+  return row[0];
+}
+
+export async function getCsatBreakdown(f: TicketFilters) {
+  const { clause, params } = buildWhere(f);
+  return query<{ rating: number; count: string }>(
+    `WITH ${latestFeedbackCte(clause)}
+     SELECT rating, COUNT(*) AS count FROM latest_fb
+      WHERE rating IS NOT NULL GROUP BY rating ORDER BY rating DESC`,
+    params
+  );
+}
+
+// Reason-chip counts, split by polarity (4-5 = went well, 1-3 = needs work).
+export async function getCsatDrivers(f: TicketFilters) {
+  const { clause, params } = buildWhere(f);
+  return query<{ reason: string; positive: boolean; count: string }>(
+    `WITH ${latestFeedbackCte(clause)}
+     SELECT r AS reason, (rating >= 4) AS positive, COUNT(*) AS count
+       FROM latest_fb, unnest(reasons) AS r
+      WHERE rating IS NOT NULL
+      GROUP BY r, (rating >= 4) ORDER BY count DESC`,
+    params
+  );
+}
+
+export async function getCsatByAgent(f: TicketFilters) {
+  const { clause, params } = buildWhere(f);
+  return query<{ agent_id: number | null; responses: string; satisfied: string; avg_rating: string | null }>(
+    `WITH ${latestFeedbackCte(clause)}
+     SELECT agent_id,
+            COUNT(*)                            AS responses,
+            COUNT(*) FILTER (WHERE rating >= 4) AS satisfied,
+            AVG(rating)                         AS avg_rating
+       FROM latest_fb WHERE rating IS NOT NULL
+      GROUP BY agent_id`,
+    params
+  );
+}
+
+// Answered surveys for the "Recent feedback" card: low scores first, then
+// newest. Only rows with a comment or a low score are shown.
+export async function getRecentFeedback(f: TicketFilters, limit = 8) {
+  const { clause, params } = buildWhere(f);
+  params.push(limit);
+  const limitP = `$${params.length}`;
+  return query<{
+    ticket_id: number;
+    subject: string | null;
+    rating: number;
+    resolved: boolean | null;
+    comment: string | null;
+    agent: string | null;
+    requester: string | null;
+    responded_at: string;
+  }>(
+    `WITH ${latestFeedbackCte(clause)}
+     SELECT fb.ticket_id, t.subject, fb.rating, fb.resolved, fb.comment,
+            u.name AS agent, COALESCE(c.name, c.email) AS requester, fb.responded_at
+       FROM latest_fb fb
+       JOIN tickets t ON t.id = fb.ticket_id
+       LEFT JOIN users u ON u.id = fb.agent_id
+       LEFT JOIN contacts c ON c.id = fb.contact_id
+      WHERE fb.rating IS NOT NULL
+        AND (fb.comment IS NOT NULL OR fb.rating <= 2)
+      ORDER BY (fb.rating <= 2) DESC, fb.responded_at DESC
+      LIMIT ${limitP}`,
+    params
+  );
+}
+
+// Latest survey for one ticket (ticket detail sidebar). null = none sent.
+export async function getTicketFeedback(ticketId: number) {
+  const row = await query<{
+    rating: number | null;
+    resolved: boolean | null;
+    reasons: string[];
+    comment: string | null;
+    channel: string | null;
+    sent_at: string;
+    responded_at: string | null;
+  }>(
+    `SELECT rating, resolved, reasons, comment, channel, sent_at, responded_at
+       FROM ticket_feedback WHERE ticket_id = $1
+      ORDER BY sent_at DESC LIMIT 1`,
+    [ticketId]
+  );
+  return row[0] ?? null;
+}
+
 // Heaviest individual reporters. Grouped by unique email, displayed by name.
 export async function getTopRequesters(f: TicketFilters) {
   const { clause, params } = buildWhere(f);
@@ -535,10 +651,15 @@ export async function exportTickets(f: TicketFilters) {
             u.name AS owner, c.email AS contact_email,
             t.escalation_level, t.ai_intent, t.ai_sentiment,
             t.created_at, t.updated_at,
-            t.last_customer_reply_at, t.last_agent_reply_at
+            t.last_customer_reply_at, t.last_agent_reply_at,
+            fb.rating AS csat_rating, fb.comment AS csat_comment
        FROM tickets t
        LEFT JOIN users u ON u.id = t.ticket_owner_id
        LEFT JOIN contacts c ON c.id = t.contact_id
+       LEFT JOIN LATERAL (
+         SELECT rating, comment FROM ticket_feedback
+          WHERE ticket_id = t.id ORDER BY sent_at DESC LIMIT 1
+       ) fb ON true
        ${clause}
        ORDER BY t.created_at DESC`,
     params

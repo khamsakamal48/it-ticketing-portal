@@ -11,7 +11,9 @@ import {
   DonutBreakdown,
   PRIORITY_PALETTE,
   SENTIMENT_PALETTE,
+  CSAT_PALETTE,
 } from "@/components/charts";
+import { CsatDrivers, RecentFeedback, RATING_SLUG } from "@/components/CsatPanels";
 import { DashboardTopControls } from "@/components/DashboardTopControls";
 import { InfoTip } from "@/components/InfoTip";
 import { DailyStatusBanner } from "@/components/DailyStatusBanner";
@@ -30,6 +32,10 @@ import {
   Flame,
   PauseCircle,
   TrendingUp,
+  Smile,
+  Star,
+  MailCheck,
+  ThumbsDown,
 } from "lucide-react";
 import {
   getKpis,
@@ -47,6 +53,11 @@ import {
   getAgentPerformance,
   getTopRequesters,
   getLatestDailyStatus,
+  getCsatSummary,
+  getCsatBreakdown,
+  getCsatDrivers,
+  getCsatByAgent,
+  getRecentFeedback,
 } from "@/lib/queries";
 import { encodeAgentId } from "@/lib/opaque-id";
 
@@ -80,6 +91,11 @@ export default async function DashboardPage({
     agentPerf,
     requesters,
     dailyStatus,
+    csat,
+    csatBreakdown,
+    csatDrivers,
+    csatByAgent,
+    recentFeedback,
   ] = await Promise.all([
     getKpis(f),
     getStatusBreakdown(f),
@@ -96,6 +112,11 @@ export default async function DashboardPage({
     getAgentPerformance(f, slaEscalationHours),
     getTopRequesters(f),
     getLatestDailyStatus(),
+    getCsatSummary(f),
+    getCsatBreakdown(f),
+    getCsatDrivers(f),
+    getCsatByAgent(f),
+    getRecentFeedback(f),
   ]);
 
   const n = (v: string | null | undefined) => Number(v ?? 0);
@@ -123,6 +144,24 @@ export default async function DashboardPage({
   const agingData = AGING_ORDER
     .map((b) => ({ label: b, count: n(aging.find((r) => r.bucket === b)?.count) }))
     .filter((r) => r.count > 0);
+
+  // ----- CSAT (post-closure feedback) -----
+  const csatResponded = n(csat?.responded);
+  const csatSent = n(csat?.sent);
+  const csatPct = csatResponded > 0 ? `${Math.round((n(csat?.satisfied) / csatResponded) * 100)}%` : "—";
+  const csatAvg = csat?.avg_rating != null ? n(csat.avg_rating).toFixed(1) : "—";
+  const csatRate = csatSent > 0 ? `${Math.round((csatResponded / csatSent) * 100)}%` : "—";
+  const csatLow = csatBreakdown.filter((r) => Number(r.rating) <= 2).reduce((s, r) => s + n(r.count), 0);
+  // Per-agent CSAT cell. Hidden below 3 answers: one bad survey shouldn't read as 0%.
+  const CSAT_MIN_N = 3;
+  const csatAgentMap = new Map(csatByAgent.map((r) => [r.agent_id, r]));
+  const agentCsat = (agentId: number | null) => {
+    const r = csatAgentMap.get(agentId);
+    const resp = n(r?.responses);
+    if (!r || resp < CSAT_MIN_N) return { text: "—", pct: null as number | null };
+    const pct = Math.round((n(r.satisfied) / resp) * 100);
+    return { text: `${pct}% (${resp})`, pct };
+  };
 
   // ----- Drill-down link helpers -----
   // Carry the dashboard's current date range onto every queue link, then add
@@ -284,25 +323,31 @@ export default async function DashboardPage({
                   </div>
                   {/* CSS-grid layout — proportional fr columns, guaranteed alignment */}
                   <div style={{ display: "flex", flexDirection: "column", fontSize: "13px" }}>
-                    <div style={{ display: "grid", gridTemplateColumns: "2.2fr 1fr 0.9fr 0.8fr 0.9fr 1.1fr", columnGap: "8px", fontSize: "10px", fontWeight: 600, textTransform: "uppercase", letterSpacing: "0.1em", color: "rgb(var(--subtle))", paddingBottom: "6px" }}>
+                    <div style={{ display: "grid", gridTemplateColumns: "2fr 0.9fr 0.8fr 0.7fr 0.9fr 1fr 1.1fr", columnGap: "8px", fontSize: "10px", fontWeight: 600, textTransform: "uppercase", letterSpacing: "0.1em", color: "rgb(var(--subtle))", paddingBottom: "6px" }}>
                       <span>Agent</span>
                       <span style={{ textAlign: "right" }}>Resolved</span>
                       <span style={{ textAlign: "right" }}>Avg h</span>
                       <span style={{ textAlign: "right" }}>Open</span>
                       <span style={{ textAlign: "right" }}>On hold</span>
                       <span style={{ textAlign: "right" }}>Breaching</span>
+                      <span style={{ textAlign: "right" }}>CSAT</span>
                     </div>
                     {agentPerf.length === 0 && (
                       <p style={{ paddingTop: "12px", color: "rgb(var(--subtle))" }}>No tickets in range.</p>
                     )}
                     {agentPerf.map((r) => (
-                      <Link key={r.agent} href={queueHref({ owner: ownerValue(r.agent_id) })} style={{ borderTop: "1px solid rgb(var(--border) / 0.6)", display: "grid", gridTemplateColumns: "2.2fr 1fr 0.9fr 0.8fr 0.9fr 1.1fr", columnGap: "8px", paddingTop: "7px", paddingBottom: "7px", textDecoration: "none", cursor: "pointer" }} className="transition-colors hover:bg-surface-2">
+                      <Link key={r.agent} href={queueHref({ owner: ownerValue(r.agent_id) })} style={{ borderTop: "1px solid rgb(var(--border) / 0.6)", display: "grid", gridTemplateColumns: "2fr 0.9fr 0.8fr 0.7fr 0.9fr 1fr 1.1fr", columnGap: "8px", paddingTop: "7px", paddingBottom: "7px", textDecoration: "none", cursor: "pointer" }} className="transition-colors hover:bg-surface-2">
                           <span style={{ fontWeight: 500, color: "rgb(var(--fg))" }}>{r.agent}</span>
                           <span style={{ textAlign: "right", fontVariantNumeric: "tabular-nums", color: "rgb(var(--fg))" }}>{n(r.resolved)}</span>
                           <span style={{ textAlign: "right", fontVariantNumeric: "tabular-nums", color: "rgb(var(--muted))" }}>{r.avg_resolution_h != null ? n(r.avg_resolution_h).toFixed(1) : "—"}</span>
                           <span style={{ textAlign: "right", fontVariantNumeric: "tabular-nums", color: "rgb(var(--muted))" }}>{n(r.open_load)}</span>
                           <span style={{ textAlign: "right", fontVariantNumeric: "tabular-nums", color: "rgb(var(--muted))" }}>{n(r.on_hold_load)}</span>
                           <span style={{ textAlign: "right", fontVariantNumeric: "tabular-nums", fontWeight: n(r.breaching) > 0 ? 600 : 400, color: n(r.breaching) > 0 ? "#FF453A" : "rgb(var(--subtle))" }}>{n(r.breaching) || "—"}</span>
+                          {(() => {
+                            const c = agentCsat(r.agent_id);
+                            const color = c.pct == null ? "rgb(var(--subtle))" : c.pct >= 80 ? "#30D158" : c.pct < 60 ? "#FF453A" : "rgb(var(--fg))";
+                            return <span style={{ textAlign: "right", fontVariantNumeric: "tabular-nums", whiteSpace: "nowrap", color }}>{c.text}</span>;
+                          })()}
                       </Link>
                     ))}
                   </div>
@@ -392,6 +437,62 @@ export default async function DashboardPage({
               linkParam="requester"
               linkValueMap={requesterValueMap}
             />
+          </ChartCard>
+        </div>
+
+        {/* ───────────────── Customer feedback (CSAT) ───────────────── */}
+        <div className="pt-2">
+          <h2
+            className="text-gradient"
+            style={{
+              fontSize: "20px",
+              fontWeight: 700,
+              letterSpacing: "-0.02em",
+              lineHeight: 1.1,
+              fontFamily:
+                "-apple-system,BlinkMacSystemFont,'SF Pro Display','Helvetica Neue',Arial,sans-serif",
+            }}
+          >
+            Customer Feedback
+          </h2>
+          <p
+            className="mt-1"
+            style={{
+              fontSize: "10px",
+              fontWeight: 600,
+              letterSpacing: "0.16em",
+              textTransform: "uppercase",
+              color: "rgb(var(--subtle))",
+            }}
+          >
+            Post-closure satisfaction survey
+          </p>
+        </div>
+
+        <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
+          <KpiCard label="CSAT" value={csatPct} sub={`${n(csat?.satisfied)} of ${csatResponded} rated 4–5`} accent="green" icon={Smile} hero info={VISUAL_INFO.csat} />
+          <KpiCard label="Avg Rating" value={csatAvg} sub="out of 5" accent="blue" icon={Star} hero info={VISUAL_INFO.csat} />
+          <KpiCard label="Response Rate" value={csatRate} sub={`${csatResponded} of ${csatSent} surveys`} accent="slate" icon={MailCheck} hero info={VISUAL_INFO.csat} />
+          <KpiCard label="Low Scores" value={csatLow} sub="rated 1–2 · manager alerted" accent="red" icon={ThumbsDown} hero info={VISUAL_INFO.recent_feedback} />
+        </div>
+
+        <div className="grid grid-cols-1 gap-4 lg:grid-cols-3">
+          <ChartCard title="Satisfaction" chartHeight={300} info={VISUAL_INFO.csat_breakdown}>
+            <DonutBreakdown
+              data={csatBreakdown.map((r) => ({ name: RATING_SLUG[Number(r.rating)], value: Number(r.count) }))}
+              palette={CSAT_PALETTE}
+              emptyMsg="No survey answers yet."
+            />
+          </ChartCard>
+          <ChartCard title="Feedback drivers" chartHeight={300} info={VISUAL_INFO.csat_drivers}>
+            <div className="h-full overflow-y-auto pr-1">
+              <CsatDrivers data={csatDrivers.map((r) => ({ reason: r.reason, positive: r.positive, count: Number(r.count) }))} />
+            </div>
+          </ChartCard>
+          <ChartCard title="Recent feedback" chartHeight={300} info={VISUAL_INFO.recent_feedback}>
+            <div className="h-full overflow-y-auto pr-1">
+              <RecentFeedback rows={recentFeedback} ticketHref={(id) => `/t/${id}`} />
+            </div>
           </ChartCard>
         </div>
       </div>

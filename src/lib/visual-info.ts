@@ -21,15 +21,21 @@ export const VISUAL_INFO: Record<string, string> = {
   ticket_volume: "New tickets created per day over the selected range. Click a day to drill in.",
   by_status: "How current tickets split across Open, Closed, On Hold, etc.",
   by_agent: "Number of tickets owned by each agent. Click a bar to see that agent's queue.",
-  agent_performance: "Per-agent resolved count, plus current open and on-hold load. Avg h counts only the time a ticket was assigned to that agent (hold time excluded) — not its full lifetime, so inheriting an old ticket doesn't skew the average. It covers just the tickets in Resolved; work on tickets later passed to someone else is not averaged in. Breaching counts that agent's open tickets already past the SLA (age minus hold time). The Avg Resolution KPI above still shows total time from creation to close.",
+  agent_performance: "Per-agent resolved count, plus current open and on-hold load. Avg h counts only the time a ticket was assigned to that agent (hold time excluded) — not its full lifetime, so inheriting an old ticket doesn't skew the average. It covers just the tickets in Resolved; work on tickets later passed to someone else is not averaged in. Breaching counts that agent's open tickets already past the SLA (age minus hold time). CSAT is the share of that agent's answered surveys rated 4–5 (credited to whoever owned the ticket at closure), with the number of answers in brackets; shown only from 3 answers up. The Avg Resolution KPI above still shows total time from creation to close.",
 
   // ── Charts: operational analytics ──
   inflow_outflow: "Tickets created (inflow) vs closed (outflow) per day. Gaps show backlog build-up.",
   backlog_aging: "How long currently-open tickets have been waiting, bucketed by age.",
-  intent_mix: "AI-classified request type (e.g. access, hardware, how-to) across tickets.",
+  intent_mix: "AI-classified request type (e.g. account access, hardware, donor/alumni research) across tickets.",
   sentiment: "AI-detected customer sentiment (positive / neutral / negative) across tickets.",
   priority_mix: "Distribution of tickets by priority (critical / high / medium / low).",
   top_requesters: "People who raised the most tickets in range. Click to see their tickets.",
+
+  // ── Customer feedback (CSAT) ──
+  csat: "Share of answered post-closure surveys rated Good or Excellent (4–5 of 5). Uses each ticket's latest survey. Response rate = answered ÷ surveys sent.",
+  csat_breakdown: "How requesters rated the support on their closed tickets, from Very poor (1) to Excellent (5). Latest survey per ticket.",
+  csat_drivers: "Reasons requesters picked: green = what went well (rated 4–5), red = what could be better (rated 1–3).",
+  recent_feedback: "Latest survey answers that carry a comment or a low score (1–2). Low scores are listed first and also alert the L2 manager by email.",
 
   // ── Daily AI status banner ──
   daily_status: "AI-generated daily overview of overall IT system health, refreshed each morning. Reflects current live state, not the selected date range.",

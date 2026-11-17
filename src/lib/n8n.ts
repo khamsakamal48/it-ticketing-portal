@@ -156,3 +156,15 @@ export function notifyOnHold(payload: OnHoldNotification): Promise<WebhookResult
 export function notifyTurnaround(payload: TurnaroundNotification): Promise<WebhookResult> {
   return postWebhook(process.env.N8N_STATUS_EVENT_WEBHOOK_URL, payload, "turnaround", payload.ticketId);
 }
+
+// A requester gave a low CSAT score. n8n looks up the ticket/agent/comment and
+// alerts the L2 manager once (the portal claims low_alert_sent_at first).
+export interface LowFeedbackNotification {
+  ticketId: number;
+  feedbackId: number;
+  rating: number;
+}
+
+export function notifyLowFeedback(payload: LowFeedbackNotification): Promise<WebhookResult> {
+  return postWebhook(process.env.N8N_FEEDBACK_LOW_WEBHOOK_URL, payload, "feedback-low", payload.ticketId);
+}

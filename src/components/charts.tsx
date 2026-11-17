@@ -711,3 +711,14 @@ export const SENTIMENT_PALETTE: Record<string, DonutSlice> = {
   neutral:  { fill: "#5E5CE6", glow: "rgba(94,92,230,0.40)",  bg: "rgba(94,92,230,0.10)",  text: "#5E5CE6", border: "rgba(94,92,230,0.25)"  },
   negative: { fill: "#FF375F", glow: "rgba(255,55,95,0.40)",  bg: "rgba(255,55,95,0.10)",  text: "#FF375F", border: "rgba(255,55,95,0.25)"  },
 };
+
+// CSAT ratings, keyed by the rating slug used in the Satisfaction donut.
+// Diverging: red (1) → orange (2) → neutral indigo (3) → teal (4) → green (5),
+// matching the sentiment donut's positive/neutral/negative hues.
+export const CSAT_PALETTE: Record<string, DonutSlice> = {
+  excellent: { fill: "#30D158", glow: "rgba(48,209,88,0.40)",  bg: "rgba(48,209,88,0.10)",  text: "#30D158", border: "rgba(48,209,88,0.25)"  },
+  good:      { fill: "#00C7BE", glow: "rgba(0,199,190,0.40)",  bg: "rgba(0,199,190,0.10)",  text: "#00C7BE", border: "rgba(0,199,190,0.25)"  },
+  okay:      { fill: "#5E5CE6", glow: "rgba(94,92,230,0.40)",  bg: "rgba(94,92,230,0.10)",  text: "#5E5CE6", border: "rgba(94,92,230,0.25)"  },
+  poor:      { fill: "#FF9F0A", glow: "rgba(255,159,10,0.40)", bg: "rgba(255,159,10,0.10)", text: "#FF9F0A", border: "rgba(255,159,10,0.25)" },
+  very_poor: { fill: "#FF375F", glow: "rgba(255,55,95,0.40)",  bg: "rgba(255,55,95,0.10)",  text: "#FF375F", border: "rgba(255,55,95,0.25)"  },
+};

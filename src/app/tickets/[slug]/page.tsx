@@ -13,7 +13,9 @@ import {
   getTicketSpans,
   getActiveAgents,
   getContacts,
+  getTicketFeedback,
 } from "@/lib/queries";
+import { FEEDBACK_REASONS, RATING_EMOJI, RATING_LABELS } from "@/lib/feedback";
 import { fmtIST, fmtDurationHours } from "@/lib/datetime";
 import { decodeTicketId } from "@/lib/ticket-id";
 import { isHtmlBody, sanitizeEmailHtml } from "@/lib/sanitize-email";
@@ -45,7 +47,7 @@ export default async function TicketDetail({
   const ticket = await getTicket(ticketId);
   if (!ticket) notFound();
 
-  const [session, messages, tags, audit, spans, agents, contacts] = await Promise.all([
+  const [session, messages, tags, audit, spans, agents, contacts, feedback] = await Promise.all([
     auth(),
     getTicketMessages(ticketId),
     getTicketTags(ticketId),
@@ -53,6 +55,7 @@ export default async function TicketDetail({
     getTicketSpans(ticketId),
     getActiveAgents(),
     getContacts(),
+    getTicketFeedback(ticketId),
   ]);
 
   // Best-effort: detect the real requester + original send-time from the quoted
@@ -245,6 +248,41 @@ export default async function TicketDetail({
               holdHours={holdHours}
               currentOwnerId={ticket.owner_id ?? null}
             />
+
+            {feedback && (
+              <div className="card p-5 text-sm">
+                <h3 className="mb-3 text-sm font-semibold text-fg">Requester feedback</h3>
+                {feedback.rating == null ? (
+                  <p className="text-muted">Survey sent {fmtIST(feedback.sent_at)} · no answer yet.</p>
+                ) : (
+                  <div className="space-y-2 text-muted">
+                    <p className="flex items-center gap-2 text-fg">
+                      <span aria-hidden className="text-lg leading-none">{RATING_EMOJI[feedback.rating]}</span>
+                      <span className="font-medium" style={{ color: feedback.rating <= 2 ? "#FF453A" : undefined }}>
+                        {feedback.rating}/5 · {RATING_LABELS[feedback.rating]}
+                      </span>
+                    </p>
+                    {feedback.resolved != null && (
+                      <p>Issue resolved: <span className="text-fg">{feedback.resolved ? "Yes" : "No"}</span></p>
+                    )}
+                    {feedback.reasons?.length > 0 && (
+                      <div className="flex flex-wrap gap-1.5">
+                        {feedback.reasons.map((r) => (
+                          <span key={r} className="badge bg-surface-2 text-muted ring-1 ring-inset ring-border">
+                            {FEEDBACK_REASONS[r as keyof typeof FEEDBACK_REASONS] ?? r}
+                          </span>
+                        ))}
+                      </div>
+                    )}
+                    {feedback.comment && <p className="whitespace-pre-wrap text-fg">“{feedback.comment}”</p>}
+                    <p className="text-xs text-subtle">
+                      {feedback.channel === "outlook_card" ? "Answered in Outlook" : "Answered via survey link"}
+                      {feedback.responded_at ? ` · ${fmtIST(feedback.responded_at)}` : ""}
+                    </p>
+                  </div>
+                )}
+              </div>
+            )}
 
             <div className="card p-5 text-sm">
               <h3 className="mb-3 text-sm font-semibold text-fg">Details</h3>
