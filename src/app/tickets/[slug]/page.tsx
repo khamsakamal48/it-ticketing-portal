@@ -1,9 +1,12 @@
+import { getDeployment } from "@/lib/deployment";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { ArrowLeft, Sparkles } from "lucide-react";
 import AppShell from "@/components/AppShell";
 import { StatusBadge, PriorityBadge } from "@/components/badges";
 import { TicketActions } from "@/components/TicketActions";
+import { AssigneesPanel } from "@/components/AssigneesPanel";
+import { flag } from "@/lib/config";
 import ResolutionBreakdown from "@/components/ResolutionBreakdown";
 import {
   getTicket,
@@ -14,6 +17,8 @@ import {
   getActiveAgents,
   getContacts,
   getTicketFeedback,
+  getTicketAssignees,
+  getLastReminder,
 } from "@/lib/queries";
 import { FEEDBACK_REASONS, RATING_EMOJI, RATING_LABELS } from "@/lib/feedback";
 import { fmtIST, fmtDurationHours } from "@/lib/datetime";
@@ -47,6 +52,14 @@ export default async function TicketDetail({
   const ticket = await getTicket(ticketId);
   if (!ticket) notFound();
 
+  const [multiAssignee, manualReminder, perAgentMetrics] = await Promise.all([
+    flag("multiAssignee"),
+    flag("manualReminder"),
+    flag("perAgentMetrics"),
+  ]);
+  const [assignees, lastReminder] = multiAssignee
+    ? await Promise.all([getTicketAssignees(ticketId), manualReminder ? getLastReminder(ticketId) : null])
+    : [[], null];
   const [session, messages, tags, audit, spans, agents, contacts, feedback] = await Promise.all([
     auth(),
     getTicketMessages(ticketId),
@@ -234,12 +247,31 @@ export default async function TicketDetail({
               detectedOriginal={detectedOriginal}
               canReopen={isManager(session?.user?.role)}
               hasRequesterEmail={Boolean(ticket.contact_email)}
+              mailboxLabel={getDeployment().mailboxLabel}
+              multiAssignee={multiAssignee}
               participants={(ticket.participant_emails ?? "")
                 .split(",")
                 .map((e) => e.trim())
                 .filter(Boolean)}
             />
 
+            {multiAssignee && (
+              <AssigneesPanel
+                ticketId={ticket.id}
+                updatedAt={new Date(ticket.updated_at).toISOString()}
+                options={agents.map((a) => ({ id: a.id, name: a.name, email: a.email }))}
+                current={assignees.map((a) => ({
+                  row_id: a.row_id,
+                  user_id: a.user_id,
+                  name: a.name,
+                  notified_at: a.notified_at,
+                }))}
+                reminderEnabled={manualReminder}
+                lastReminder={lastReminder ? fmtIST(lastReminder) : null}
+              />
+            )}
+
+            {perAgentMetrics && (
             <ResolutionBreakdown
               spans={spans.map((s) => ({ user_id: s.user_id, agent: s.agent, hours: Number(s.hours) }))}
               createdAt={ticket.created_at}
@@ -248,6 +280,7 @@ export default async function TicketDetail({
               holdHours={holdHours}
               currentOwnerId={ticket.owner_id ?? null}
             />
+            )}
 
             {feedback && (
               <div className="card p-5 text-sm">

@@ -7,7 +7,10 @@
     "build": "next build",
     "start": "next start",
     "lint": "next lint",
-    "db:migrate": "node scripts/migrate.mjs"
+    "db:migrate": "node scripts/migrate.mjs",
+    "db:test": "node scripts/db-test.mjs",
+    "db:grants": "node scripts/grants.mjs",
+    "db:deploy": "node scripts/migrate.mjs && node scripts/grants.mjs"
   },
   "dependencies": {
     "clsx": "2.1.1",

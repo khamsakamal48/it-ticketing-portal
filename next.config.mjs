@@ -1,6 +1,9 @@
 /** @type {import('next').NextConfig} */
 const nextConfig = {
   output: "standalone",
+  // Local only: lets two dev servers (IT + Scholarship) run side by side
+  // without sharing a build cache. Unset in Docker, so prod uses .next.
+  distDir: process.env.NEXT_DIST_DIR || ".next",
   poweredByHeader: false,
   experimental: {
     serverActions: { bodySizeLimit: "2mb" },

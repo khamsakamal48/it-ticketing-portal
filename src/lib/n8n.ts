@@ -168,3 +168,65 @@ export interface LowFeedbackNotification {
 export function notifyLowFeedback(payload: LowFeedbackNotification): Promise<WebhookResult> {
   return postWebhook(process.env.N8N_FEEDBACK_LOW_WEBHOOK_URL, payload, "feedback-low", payload.ticketId);
 }
+
+// ---------------- Multi-assignee deployments (e.g. Scholarship) ----------------
+
+// One newly added assignee. n8n claims ticket_assignees.notified_at for the row
+// (so the email goes out at most once) and emails that person only. A payload
+// without `kind` keeps the IT single-owner assignment path.
+export interface AssigneeNotification {
+  kind: "assignee";
+  ticketId: number;
+  /** ticket_assignees.id of the newly added row. */
+  assigneeRowId: number;
+  actorUserId: number;
+}
+
+export function notifyAssigneeAdded(payload: AssigneeNotification): Promise<WebhookResult> {
+  return postWebhook(process.env.N8N_ASSIGN_WEBHOOK_URL, payload, "assignee", payload.ticketId);
+}
+
+// Manual reminder to chosen assignees. Own webhook (portal-ticket-remind) because it
+// answers {sent}; n8n de-duplicates to one reminder per ticket per 2 minutes.
+export interface ReminderNotification {
+  event: "remind";
+  ticketId: number;
+  assigneeUserIds: number[];
+  note: string | null;
+  actorUserId: number;
+  actorEmail: string;
+}
+
+export interface ReminderResult extends WebhookResult {
+  /** False when n8n skipped it because a reminder went out in the last 2 minutes. */
+  delivered: boolean;
+}
+
+export async function notifyReminder(payload: ReminderNotification): Promise<ReminderResult> {
+  const url = process.env.N8N_REMIND_WEBHOOK_URL;
+  if (!url) return { configured: false, sent: false, delivered: false };
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), TIMEOUT_MS);
+  try {
+    const headers: Record<string, string> = { "Content-Type": "application/json" };
+    const token = process.env.N8N_WEBHOOK_TOKEN;
+    if (token) headers["X-Webhook-Token"] = token;
+    const res = await fetch(url, {
+      method: "POST",
+      headers,
+      body: JSON.stringify(payload),
+      signal: controller.signal,
+    });
+    if (!res.ok) {
+      console.error(`n8n reminder webhook returned ${res.status} for ticket ${payload.ticketId}`);
+      return { configured: true, sent: false, delivered: false };
+    }
+    const data = (await res.json().catch(() => ({}))) as { sent?: unknown };
+    return { configured: true, sent: true, delivered: data.sent === true || data.sent === "true" };
+  } catch (err) {
+    console.error(`n8n reminder webhook failed for ticket ${payload.ticketId}`, err);
+    return { configured: true, sent: false, delivered: false };
+  } finally {
+    clearTimeout(timer);
+  }
+}

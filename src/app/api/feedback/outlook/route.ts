@@ -41,7 +41,12 @@ export async function POST(req: NextRequest) {
   if (!jwt) return status(401, "Unauthorized.");
 
   const portalUrl = (await getConfigValue("portal_url", "")).replace(/\/+$/, "");
-  const sender = (await getConfigValue("outlook_am_sender", "it.operations@iitbacr.com")).toLowerCase();
+  const sender = (await getConfigValue("outlook_am_sender", "")).toLowerCase();
+  if (!sender) {
+    // No team mailbox configured: never fall back to another team's address.
+    console.warn("outlook_am_sender is not set in system_config; rejecting Actionable Message");
+    return status(401, "Unauthorized.");
+  }
 
   let actor: string;
   try {

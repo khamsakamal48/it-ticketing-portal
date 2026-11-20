@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import { Inter, JetBrains_Mono } from "next/font/google";
 import "./globals.css";
+import { getDeployment } from "@/lib/deployment";
 
 const inter = Inter({
   subsets: ["latin"],
@@ -14,10 +15,13 @@ const jetbrains = JetBrains_Mono({
   variable: "--font-mono",
 });
 
-export const metadata: Metadata = {
-  title: "IT Ticketing Portal",
-  description: "IITB ACR — IT Operations ticketing dashboard & management",
-};
+export function generateMetadata(): Metadata {
+  const d = getDeployment();
+  return {
+    title: d.portalTitle,
+    description: `${d.orgLabel} — ${d.teamLabel} ticketing dashboard & management`,
+  };
+}
 
 // Apply the saved theme before paint to avoid a light→dark flash.
 // Default to dark (this is an all-day ops dashboard).

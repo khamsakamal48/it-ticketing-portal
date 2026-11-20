@@ -25,17 +25,22 @@ const TITLE: Record<string, string> = {
   "/admin": "Admin",
 };
 
-function Brand({ collapsed = false }: { collapsed?: boolean }) {
+export interface BrandInfo {
+  short: string;
+  org: string;
+}
+
+function Brand({ collapsed = false, brand }: { collapsed?: boolean; brand: BrandInfo }) {
   return (
     <div className="flex items-center gap-2.5">
       <div className="bg-grad-brand flex h-9 w-9 shrink-0 items-center justify-center rounded-xl text-sm font-bold text-white"
            style={{ boxShadow: "0 10px 22px -8px rgba(10,132,255,0.55), inset 0 1px 0 rgba(255,255,255,0.20)" }}>
-        IT
+        {brand.short}
       </div>
       {!collapsed && (
         <div className="text-sm font-semibold leading-tight text-fg">
           Ticketing
-          <span className="block text-[11px] font-normal text-subtle">IITB ACR</span>
+          <span className="block text-[11px] font-normal text-subtle">{brand.org}</span>
         </div>
       )}
     </div>
@@ -104,9 +109,11 @@ export function NavShell({
   topbar,
   footer,
   footerCollapsed,
+  brand,
   children,
 }: {
   active: string;
+  brand: BrandInfo;
   topbar?: React.ReactNode;
   footer: React.ReactNode;
   footerCollapsed?: React.ReactNode;
@@ -138,7 +145,7 @@ export function NavShell({
         }`}
       >
         <div className={`flex items-center py-5 ${collapsed ? "justify-center px-3" : "justify-between px-5"}`}>
-          <Brand collapsed={collapsed} />
+          <Brand collapsed={collapsed} brand={brand} />
         </div>
         <NavLinks active={active} collapsed={collapsed} />
         <div className="px-3 pb-2">
@@ -169,7 +176,7 @@ export function NavShell({
           />
           <aside className="absolute inset-y-0 left-0 flex w-64 flex-col border-r border-border bg-surface animate-slide-in">
             <div className="flex items-center justify-between px-5 py-5">
-              <Brand />
+              <Brand brand={brand} />
               <button
                 onClick={() => setOpen(false)}
                 aria-label="Close menu"
@@ -197,7 +204,7 @@ export function NavShell({
               <Menu size={20} />
             </button>
             <span className="md:hidden">
-              <Brand />
+              <Brand brand={brand} />
             </span>
             <h1 className="hidden text-sm font-semibold text-fg md:block">{title}</h1>
           </div>

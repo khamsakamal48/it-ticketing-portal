@@ -12,7 +12,10 @@ import {
   notifyOnHold,
   notifyTurnaround,
   notifyTicketReply,
+  notifyAssigneeAdded,
+  notifyReminder,
 } from "@/lib/n8n";
+import { flag } from "@/lib/config";
 import {
   assertTransition,
   assertOwnerRequiredForClose,
@@ -126,6 +129,8 @@ export async function reassignTicket(
   return wrap(
     (async () => {
       const actor = await requireActor();
+      // Multi-assignee deployments derive the owner from ticket_assignees.
+      if (await flag("multiAssignee")) throw new RuleError("Use assignees to change who is working on this ticket.");
       const assigned = await withTransaction(async (client) => {
         const t = await lockTicket(client, ticketId, expectedUpdatedAt);
         const agent = await activeAgent(client, newOwnerId);
@@ -614,6 +619,7 @@ export async function sendReply(
       const actor = await requireActor();
       const text = body.trim();
       if (!text) throw new RuleError("Reply cannot be empty.");
+      const multiAssignee = await flag("multiAssignee");
 
       const sent = await withTransaction(async (client) => {
         const t = await lockTicket(client, ticketId, expectedUpdatedAt);
@@ -623,7 +629,17 @@ export async function sendReply(
         // Copy the assigned owner and the sender (usually the same person, but a
         // colleague may answer on someone else's ticket — both stay in the loop).
         const owner = await activeAgent(client, t.ticket_owner_id!);
-        const cc = [...new Set([owner?.email, actor.email].filter(Boolean) as string[])];
+        const ccList = [owner?.email, actor.email];
+        if (multiAssignee) {
+          // Everyone currently working the ticket stays in the loop.
+          const { rows } = await client.query<{ email: string }>(
+            `SELECT u.email FROM ticket_assignees ta JOIN users u ON u.id = ta.user_id
+              WHERE ta.ticket_id = $1 AND ta.removed_at IS NULL`,
+            [ticketId]
+          );
+          ccList.push(...rows.map((r) => r.email));
+        }
+        const cc = [...new Set(ccList.filter(Boolean).map((e) => e!.toLowerCase()))];
         if (alsoClose && t.status !== "closed") {
           assertTransition(t.status, "closed");
           assertOwnerRequiredForClose("closed", t.ticket_owner_id);
@@ -724,6 +740,168 @@ export async function addInternalNote(
           newValue: text.slice(0, 200),
         });
       });
+    })(),
+    ticketId
+  );
+}
+
+// ---------------- Assignees (multi-assignee deployments) ----------------
+
+// Replaces the ticket's current assignee set. Rows are never deleted: dropped
+// people get removed_at, new people get a fresh row (re-adding = new row). The
+// owner is derived by the sync_ticket_owner trigger (migration 010).
+export async function setAssignees(
+  ticketId: number,
+  userIds: number[],
+  expectedUpdatedAt: string
+): Promise<ActionResult> {
+  return wrap(
+    (async () => {
+      const actor = await requireActor();
+      if (!(await flag("multiAssignee"))) throw new RuleError("Multiple assignees is not enabled.");
+      const wanted = [...new Set(userIds.map(Number).filter((n) => Number.isInteger(n) && n > 0))];
+
+      const changes = await withTransaction(async (client) => {
+        await lockTicket(client, ticketId, expectedUpdatedAt);
+        for (const id of wanted) {
+          if (!(await activeAgent(client, id))) throw new RuleError("Cannot assign an inactive or unknown user.");
+        }
+        const { rows: current } = await client.query<{ id: number; user_id: number; name: string }>(
+          `SELECT ta.id, ta.user_id, u.name FROM ticket_assignees ta JOIN users u ON u.id = ta.user_id
+            WHERE ta.ticket_id = $1 AND ta.removed_at IS NULL ORDER BY ta.assigned_at, ta.id`,
+          [ticketId]
+        );
+        const currentIds = current.map((r) => r.user_id);
+        const toAdd = wanted.filter((id) => !currentIds.includes(id));
+        const toRemove = current.filter((r) => !wanted.includes(r.user_id));
+        if (!toAdd.length && !toRemove.length) return null;
+
+        if (toRemove.length) {
+          await client.query(`UPDATE ticket_assignees SET removed_at = NOW() WHERE id = ANY($1)`, [
+            toRemove.map((r) => r.id),
+          ]);
+        }
+        const added: { rowId: number; userId: number; name: string }[] = [];
+        for (const userId of toAdd) {
+          // The actor adding themselves needs no email: mark it notified up front.
+          const { rows } = await client.query<{ id: number; name: string }>(
+            `INSERT INTO ticket_assignees (ticket_id, user_id, assigned_by, notified_at)
+             VALUES ($1, $2, $3, CASE WHEN $2 = $3 THEN NOW() END)
+             RETURNING id, (SELECT name FROM users WHERE id = $2) AS name`,
+            [ticketId, userId, actor.id]
+          );
+          added.push({ rowId: rows[0].id, userId, name: rows[0].name });
+        }
+        // Bump updated_at on every set change so lockTicket catches stale edits
+        // (the trigger only touches the row when the derived owner changes).
+        await client.query(`UPDATE tickets SET updated_at = NOW() WHERE id = $1`, [ticketId]);
+
+        const { rows: after } = await client.query<{ name: string }>(
+          `SELECT u.name FROM ticket_assignees ta JOIN users u ON u.id = ta.user_id
+            WHERE ta.ticket_id = $1 AND ta.removed_at IS NULL ORDER BY ta.assigned_at, ta.id`,
+          [ticketId]
+        );
+        await writeAudit(client, {
+          ticketId,
+          actorUserId: actor.id,
+          actorEmail: actor.email,
+          action: "assignees_change",
+          field: "assignees",
+          oldValue: current.map((r) => r.name).join(", ") || null,
+          newValue: after.map((r) => r.name).join(", ") || null,
+        });
+        return added;
+      });
+
+      if (!changes) return;
+      const failed: string[] = [];
+      for (const a of changes) {
+        if (a.userId === actor.id) continue;
+        const r = await notifyAssigneeAdded({ kind: "assignee", ticketId, assigneeRowId: a.rowId, actorUserId: actor.id });
+        if (r.configured && !r.sent) failed.push(a.name);
+      }
+      if (failed.length) return { warning: `Assignees saved, but not notified: ${failed.join(", ")}. Use Resend.` };
+    })(),
+    ticketId
+  );
+}
+
+// Re-sends a failed assignment email. Only for a current row whose email was
+// never claimed (notified_at IS NULL) — a delivered email is never re-sent.
+export async function resendAssignee(ticketId: number, rowId: number): Promise<ActionResult> {
+  return wrap(
+    (async () => {
+      const actor = await requireActor();
+      if (!(await flag("multiAssignee"))) throw new RuleError("Multiple assignees is not enabled.");
+      const row = await queryOne<{ notified_at: Date | null; name: string }>(
+        `SELECT ta.notified_at, u.name FROM ticket_assignees ta JOIN users u ON u.id = ta.user_id
+          WHERE ta.id = $1 AND ta.ticket_id = $2 AND ta.removed_at IS NULL`,
+        [rowId, ticketId]
+      );
+      if (!row) throw new RuleError("That person is no longer assigned to this ticket.");
+      if (row.notified_at) throw new RuleError("Already notified.");
+      const r = await notifyAssigneeAdded({ kind: "assignee", ticketId, assigneeRowId: rowId, actorUserId: actor.id });
+      await withTransaction((client) =>
+        writeAudit(client, {
+          ticketId,
+          actorUserId: actor.id,
+          actorEmail: actor.email,
+          action: "assignee_renotify",
+          field: "assignees",
+          newValue: row.name,
+        })
+      );
+      if (r.configured && !r.sent) return { warning: `Could not notify ${row.name}. Try again later.` };
+    })(),
+    ticketId
+  );
+}
+
+// ---------------- Manual reminder ----------------
+export async function sendReminder(
+  ticketId: number,
+  userIds: number[],
+  note: string
+): Promise<ActionResult> {
+  return wrap(
+    (async () => {
+      const actor = await requireActor();
+      if (!(await flag("manualReminder"))) throw new RuleError("Manual reminders are not enabled.");
+      const ids = [...new Set(userIds.map(Number).filter((n) => Number.isInteger(n) && n > 0))];
+      if (!ids.length) throw new RuleError("Pick at least one assignee to remind.");
+      const text = (note ?? "").trim();
+      if (text.length > 1000) throw new RuleError("Note is too long (max 1000 characters).");
+
+      const { rows } = await withTransaction((client) =>
+        client.query<{ user_id: number; name: string }>(
+          `SELECT ta.user_id, u.name FROM ticket_assignees ta JOIN users u ON u.id = ta.user_id
+            WHERE ta.ticket_id = $1 AND ta.removed_at IS NULL AND ta.user_id = ANY($2)`,
+          [ticketId, ids]
+        )
+      );
+      if (rows.length !== ids.length) throw new RuleError("Only current assignees can be reminded.");
+
+      const r = await notifyReminder({
+        event: "remind",
+        ticketId,
+        assigneeUserIds: ids,
+        note: text || null,
+        actorUserId: actor.id,
+        actorEmail: actor.email,
+      });
+      if (!r.configured) throw new RuleError("Reminders are not configured (N8N_REMIND_WEBHOOK_URL).");
+      if (!r.sent) return { warning: "The reminder could not be sent. Try again later." };
+      if (!r.delivered) return { warning: "A reminder was sent in the last 2 minutes; this one was skipped." };
+      await withTransaction((client) =>
+        writeAudit(client, {
+          ticketId,
+          actorUserId: actor.id,
+          actorEmail: actor.email,
+          action: "reminder_sent",
+          field: "reminder",
+          newValue: (rows.map((x) => x.name).join(", ") + (text ? ` — ${text}` : "")).slice(0, 500),
+        })
+      );
     })(),
     ticketId
   );

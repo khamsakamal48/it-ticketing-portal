@@ -1,3 +1,4 @@
+import { getDeployment } from "@/lib/deployment";
 import { Sparkles } from "lucide-react";
 import type { DailyStatus, DailyStatusSeverity } from "@/lib/queries";
 import { fmtRelativeIST } from "@/lib/datetime";
@@ -47,7 +48,7 @@ export function DailyStatusBanner({
             color: "rgb(var(--subtle))",
           }}
         >
-          IT Health Status (AI Generated)
+          {getDeployment().teamShort} Health Status (AI Generated)
         </span>
         {info && <InfoTip text={info} />}
         {sev && (

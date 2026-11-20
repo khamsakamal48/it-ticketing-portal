@@ -55,6 +55,24 @@ services:
 # portal resolves "n8n-postgres" via container DNS. Set .env DATABASE_URL
 # host to n8n-postgres (NOT localhost), e.g.:
 #   postgresql://USER:PASS@n8n-postgres:5432/it_ticketing_system
+  # Scholarship team portal: same image, its own env file, database and host.
+  web-scholarship:
+    image: it-ticketing-portal:latest
+    ports:
+      - "3001:3000"
+    env_file:
+      - .env.scholarship
+    networks:
+      - n8n-net
+    restart: unless-stopped
+    depends_on:
+      - web
+    healthcheck:
+      test: ["CMD", "wget", "-qO-", "http://127.0.0.1:3000/api/health"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+
 networks:
   n8n-net:
     external: true

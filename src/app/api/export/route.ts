@@ -2,6 +2,7 @@ import { NextResponse, type NextRequest } from "next/server";
 import { auth } from "@/lib/auth";
 import { parseFilters } from "@/lib/filters";
 import { exportTickets } from "@/lib/queries";
+import { flag } from "@/lib/config";
 import { toCsv } from "@/lib/csv";
 import { DateTime } from "luxon";
 import { IST } from "@/lib/datetime";
@@ -15,6 +16,8 @@ export async function GET(req: NextRequest) {
 
   const sp = Object.fromEntries(req.nextUrl.searchParams.entries());
   const filters = parseFilters(sp);
+  const multiAssignee = await flag("multiAssignee");
+  filters.matchAssignees = multiAssignee;
   const rows = await exportTickets(filters);
 
   const columns = [
@@ -23,6 +26,7 @@ export async function GET(req: NextRequest) {
     "status",
     "priority",
     "owner",
+    ...(multiAssignee ? ["assignees"] : []),
     "contact_email",
     "escalation_level",
     "ai_intent",

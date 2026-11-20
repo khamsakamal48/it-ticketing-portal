@@ -8,6 +8,8 @@ export interface TicketFilters {
   status?: string[]; // any-of match
   priority?: string[]; // any-of match
   ownerIds?: number[]; // any-of match
+  /** Multi-assignee deployments: ownerIds match ANY current assignee, not just the derived owner. */
+  matchAssignees?: boolean;
   unassigned?: boolean; // tickets with no owner (ticket_owner_id IS NULL)
   tag?: string;
   search?: string;
@@ -56,9 +58,15 @@ function buildWhere(f: TicketFilters): { clause: string; params: unknown[] } {
   const hasOwners = !!f.ownerIds?.length;
   if (f.unassigned && hasOwners) {
     params.push(f.ownerIds);
-    conds.push(`(t.ticket_owner_id IS NULL OR t.ticket_owner_id = ANY($${params.length}))`);
+    conds.push(
+      f.matchAssignees
+        ? `(t.ticket_owner_id IS NULL OR EXISTS (SELECT 1 FROM ticket_assignees ta WHERE ta.ticket_id = t.id AND ta.removed_at IS NULL AND ta.user_id = ANY($${params.length})))`
+        : `(t.ticket_owner_id IS NULL OR t.ticket_owner_id = ANY($${params.length}))`
+    );
   } else if (f.unassigned) {
     conds.push("t.ticket_owner_id IS NULL");
+  } else if (hasOwners && f.matchAssignees) {
+    add("EXISTS (SELECT 1 FROM ticket_assignees ta WHERE ta.ticket_id = t.id AND ta.removed_at IS NULL AND ta.user_id = ANY($?))", f.ownerIds);
   } else if (hasOwners) {
     add("t.ticket_owner_id = ANY($?)", f.ownerIds);
   }
@@ -499,6 +507,52 @@ export interface TicketRow {
   updated_at: string;
   escalation_level: number;
   turnaround_at: string | null;
+  /** Current assignee names (multi-assignee deployments); null on IT. */
+  assignees: string | null;
+}
+
+// ---------------- Multi-assignee deployments ----------------
+export interface TicketAssignee {
+  row_id: number;
+  user_id: number;
+  name: string;
+  email: string;
+  assigned_at: string;
+  notified_at: string | null;
+}
+
+export async function getTicketAssignees(ticketId: number): Promise<TicketAssignee[]> {
+  return query<TicketAssignee>(
+    `SELECT ta.id AS row_id, ta.user_id, u.name, u.email, ta.assigned_at, ta.notified_at
+       FROM ticket_assignees ta JOIN users u ON u.id = ta.user_id
+      WHERE ta.ticket_id = $1 AND ta.removed_at IS NULL
+      ORDER BY ta.assigned_at, ta.id`,
+    [ticketId]
+  );
+}
+
+// Outstanding work per current assignee (open + on-hold). Not a performance metric.
+export async function getPendingByAssignee() {
+  return query<{ user_id: number; name: string; open: string; on_hold: string }>(
+    `SELECT u.id AS user_id, u.name,
+            COUNT(*) FILTER (WHERE t.status = 'open')    AS open,
+            COUNT(*) FILTER (WHERE t.status = 'on_hold') AS on_hold
+       FROM ticket_assignees ta
+       JOIN users u   ON u.id = ta.user_id
+       JOIN tickets t ON t.id = ta.ticket_id
+      WHERE ta.removed_at IS NULL AND t.status IN ('open', 'on_hold')
+      GROUP BY u.id, u.name
+      ORDER BY COUNT(*) DESC, u.name`
+  );
+}
+
+// Last manual reminder (reminder_tracking level 40).
+export async function getLastReminder(ticketId: number): Promise<string | null> {
+  const rows = await query<{ sent_at: string | null }>(
+    `SELECT MAX(sent_at) AS sent_at FROM reminder_tracking WHERE ticket_id = $1 AND reminder_level = 40`,
+    [ticketId]
+  );
+  return rows[0]?.sent_at ?? null;
 }
 
 export async function listTickets(
@@ -523,7 +577,10 @@ export async function listTickets(
     `SELECT t.id, t.subject, t.status, t.priority,
             u.name AS owner_name, t.ticket_owner_id AS owner_id,
             c.email AS contact_email,
-            t.created_at, t.updated_at, t.escalation_level, t.turnaround_at
+            t.created_at, t.updated_at, t.escalation_level, t.turnaround_at,
+            (SELECT string_agg(au.name, ', ' ORDER BY ta.assigned_at, ta.id)
+               FROM ticket_assignees ta JOIN users au ON au.id = ta.user_id
+              WHERE ta.ticket_id = t.id AND ta.removed_at IS NULL) AS assignees
        FROM tickets t
        LEFT JOIN users u ON u.id = t.ticket_owner_id
        LEFT JOIN contacts c ON c.id = t.contact_id
@@ -557,7 +614,10 @@ export async function getTicket(id: number) {
             t.created_at, t.updated_at, t.escalation_level,
             t.ai_summary, t.conversation_id, t.turnaround_at, t.on_hold_since,
             t.total_hold_seconds, t.hold_reason, t.hold_until, t.closed_at, t.first_agent_reply_at,
-            t.participant_emails
+            t.participant_emails,
+            (SELECT string_agg(au.name, ', ' ORDER BY ta.assigned_at, ta.id)
+               FROM ticket_assignees ta JOIN users au ON au.id = ta.user_id
+              WHERE ta.ticket_id = t.id AND ta.removed_at IS NULL) AS assignees
        FROM tickets t
        LEFT JOIN users u ON u.id = t.ticket_owner_id
        LEFT JOIN contacts c ON c.id = t.contact_id
@@ -652,7 +712,10 @@ export async function exportTickets(f: TicketFilters) {
             t.escalation_level, t.ai_intent, t.ai_sentiment,
             t.created_at, t.updated_at,
             t.last_customer_reply_at, t.last_agent_reply_at,
-            fb.rating AS csat_rating, fb.comment AS csat_comment
+            fb.rating AS csat_rating, fb.comment AS csat_comment,
+            (SELECT string_agg(au.name, ', ' ORDER BY ta.assigned_at, ta.id)
+               FROM ticket_assignees ta JOIN users au ON au.id = ta.user_id
+              WHERE ta.ticket_id = t.id AND ta.removed_at IS NULL) AS assignees
        FROM tickets t
        LEFT JOIN users u ON u.id = t.ticket_owner_id
        LEFT JOIN contacts c ON c.id = t.contact_id

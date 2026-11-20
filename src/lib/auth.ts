@@ -2,7 +2,7 @@ import NextAuth from "next-auth";
 import authConfig from "./auth.config";
 import { queryOne } from "./db";
 
-type Role = "agent" | "manager" | "admin";
+type Role = "agent" | "manager" | "admin" | "senior_manager";
 
 interface DbUser {
   id: number;
@@ -11,14 +11,16 @@ interface DbUser {
 }
 
 // Authorization gate: an Office 365 identity is only allowed in if its email
-// matches an ACTIVE row in the ticketing `users` table. Access level (role)
-// comes from that row. Enforced server-side on every sign-in.
+// matches an ACTIVE row in the ticketing `users` table that may log in
+// (can_login; assignee-only rows such as the Scholarship team's are emailed but
+// never sign in). Access level (role) comes from that row. Enforced server-side
+// on every sign-in.
 async function lookupActiveUser(email?: string | null): Promise<DbUser | null> {
   if (!email) return null;
   return queryOne<DbUser>(
     `SELECT id, name, role
        FROM users
-      WHERE LOWER(email) = LOWER($1) AND is_active = true
+      WHERE LOWER(email) = LOWER($1) AND is_active = true AND can_login = true
       LIMIT 1`,
     [email]
   );

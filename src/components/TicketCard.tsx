@@ -102,7 +102,7 @@ export function TicketCard({
       <div className="hidden shrink-0 flex-col items-end gap-1.5 sm:flex">
         <PriorityBadge priority={t.priority} />
         <span className="text-xs text-muted">
-          {t.owner_name ?? <span className="text-critical">Unassigned</span>}
+          {t.assignees ?? t.owner_name ?? <span className="text-critical">Unassigned</span>}
         </span>
         {elapsed != null && (
           <span

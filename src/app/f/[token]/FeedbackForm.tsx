@@ -15,6 +15,7 @@ interface Props {
   initialComment: string;
   labels: Record<number, string>;
   reasons: Record<string, string>;
+  teamLabel: string;
 }
 
 export function FeedbackForm({
@@ -26,6 +27,7 @@ export function FeedbackForm({
   initialComment,
   labels,
   reasons,
+  teamLabel,
 }: Props) {
   const [rating, setRating] = useState<number | null>(initialRating);
   const [resolved, setResolved] = useState<boolean | null>(initialResolved);
@@ -209,7 +211,7 @@ export function FeedbackForm({
       {submitted && (
         <div className="rounded-lg border border-border bg-surface-2 p-4 text-sm text-fg">
           <p className="font-medium">Thank you — your feedback was sent.</p>
-          <p className="mt-1 text-muted">It goes straight to the IT & Operations team. You can close this page.</p>
+          <p className="mt-1 text-muted">It goes straight to the {teamLabel} team. You can close this page.</p>
         </div>
       )}
     </form>

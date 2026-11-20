@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import { getSurvey, RATING_LABELS, FEEDBACK_REASONS } from "@/lib/feedback";
 import { FeedbackForm } from "./FeedbackForm";
+import { getDeployment } from "@/lib/deployment";
 
 // Public CSAT landing page (middleware allowlists /f/). Reached from the rating
 // buttons in the closure email: /f/<token>?r=<1..5>. Rendering this page never
@@ -9,10 +10,12 @@ import { FeedbackForm } from "./FeedbackForm";
 
 export const dynamic = "force-dynamic";
 
-export const metadata: Metadata = {
-  title: "Rate your IT support",
-  robots: { index: false, follow: false },
-};
+export function generateMetadata(): Metadata {
+  return {
+    title: `Rate your ${getDeployment().teamShort} support`,
+    robots: { index: false, follow: false },
+  };
+}
 
 function Shell({ children }: { children: React.ReactNode }) {
   return (
@@ -63,7 +66,7 @@ export default async function FeedbackPage({
   return (
     <Shell>
       <p className="text-xs font-semibold uppercase tracking-[0.14em] text-subtle">
-        IT & Operations · Ticket #{survey.ticket_id}
+        {getDeployment().teamLabel} · Ticket #{survey.ticket_id}
       </p>
       <h1 className="mt-2 text-xl font-semibold leading-snug text-fg">How did we do?</h1>
       {survey.subject && <p className="mt-1 truncate text-sm text-muted">{survey.subject}</p>}
@@ -81,6 +84,7 @@ export default async function FeedbackPage({
         initialComment={survey.comment ?? ""}
         labels={RATING_LABELS}
         reasons={FEEDBACK_REASONS}
+        teamLabel={getDeployment().teamLabel}
       />
     </Shell>
   );

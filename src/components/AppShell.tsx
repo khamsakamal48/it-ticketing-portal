@@ -1,6 +1,7 @@
 import { redirect } from "next/navigation";
 import { auth, signOut } from "@/lib/auth";
 import { LogOut } from "lucide-react";
+import { getDeployment } from "@/lib/deployment";
 import { NavShell } from "./NavShell";
 
 export default async function AppShell({
@@ -22,6 +23,7 @@ export default async function AppShell({
     redirect("/signin?error=AccessDenied");
   }
   const user = session.user;
+  const deployment = getDeployment();
   const display = user?.name ?? user?.email ?? "User";
   const initials = display
     .split(/[\s@.]+/)
@@ -81,7 +83,7 @@ export default async function AppShell({
   );
 
   return (
-    <NavShell active={active} topbar={topbar} footer={footer} footerCollapsed={footerCollapsed}>
+    <NavShell active={active} topbar={topbar} footer={footer} footerCollapsed={footerCollapsed} brand={{ short: deployment.teamShort, org: deployment.orgLabel }}>
       {children}
     </NavShell>
   );

@@ -38,5 +38,5 @@ export const VISUAL_INFO: Record<string, string> = {
   recent_feedback: "Latest survey answers that carry a comment or a low score (1–2). Low scores are listed first and also alert the L2 manager by email.",
 
   // ── Daily AI status banner ──
-  daily_status: "AI-generated daily overview of overall IT system health, refreshed each morning. Reflects current live state, not the selected date range.",
+  daily_status: "AI-generated daily overview of overall system health, refreshed each morning. Reflects current live state, not the selected date range.",
 };

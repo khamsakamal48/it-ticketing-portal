@@ -1,6 +1,7 @@
 import { signIn, auth } from "@/lib/auth";
 import { redirect } from "next/navigation";
 import { AlertCircle } from "lucide-react";
+import { getDeployment, otherPortals } from "@/lib/deployment";
 
 // O365 sign-in. Only emails present-and-active in the `users` table are allowed
 // (enforced in the auth signIn callback). Everyone else is bounced back here.
@@ -15,6 +16,8 @@ export default async function SignInPage({
   // account; keep it here showing the access-denied message (no redirect loop).
   if (session?.user?.id) redirect("/dashboard");
   const { callbackUrl, error } = await searchParams;
+  const d = getDeployment();
+  const others = otherPortals();
 
   return (
     <main className="relative flex min-h-dvh items-center justify-center overflow-hidden p-6">
@@ -31,15 +34,29 @@ export default async function SignInPage({
       <div className="card relative w-full max-w-md animate-rise-in p-8 text-center shadow-pop">
         <span aria-hidden className="absolute inset-x-0 top-0 h-px bg-gradient-to-r from-transparent via-brand/60 to-transparent" />
         <div className="bg-grad-brand mx-auto mb-6 flex h-14 w-14 items-center justify-center rounded-2xl text-lg font-bold text-white shadow-[0_8px_24px_-6px_rgb(var(--brand)/0.6)]">
-          IT
+          {d.teamShort}
         </div>
-        <h1 className="text-xl font-semibold tracking-tight text-fg">IT Ticketing Portal</h1>
-        <p className="mt-1 text-sm text-subtle">IITB DRF — IT & Operations</p>
+        <h1 className="text-xl font-semibold tracking-tight text-fg">{d.portalTitle}</h1>
+        <p className="mt-1 text-sm text-subtle">{d.signinOrgLabel} — {d.teamLabel}</p>
 
         {error && (
           <div className="mt-5 flex items-start gap-2 rounded-lg bg-critical/10 px-3 py-2.5 text-left text-sm text-critical ring-1 ring-inset ring-critical/15">
             <AlertCircle size={16} className="mt-0.5 shrink-0" />
-            <span>Access denied. Your Office 365 account is not a registered active agent.</span>
+            <span>
+              Access denied. Your Office 365 account is not a registered active agent.
+              {others.length > 0 && (
+                <>
+                  {" "}You may be looking for{" "}
+                  {others.map((p, i) => (
+                    <span key={p.key}>
+                      {i > 0 && ", "}
+                      <a className="underline" href={p.url}>{p.name}</a>
+                    </span>
+                  ))}
+                  .
+                </>
+              )}
+            </span>
           </div>
         )}
 
@@ -62,7 +79,7 @@ export default async function SignInPage({
             Sign in with Office 365
           </button>
         </form>
-        <p className="mt-4 text-xs text-subtle">Access restricted to registered agents in IT & Operations Team.</p>
+        <p className="mt-4 text-xs text-subtle">Access restricted to registered agents in {d.teamLabel} Team.</p>
       </div>
     </main>
   );

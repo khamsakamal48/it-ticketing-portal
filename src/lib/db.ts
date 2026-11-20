@@ -29,7 +29,9 @@ export const pool: Pool =
   new Pool({
     connectionString: process.env.DATABASE_URL,
     ssl: sslConfig(),
-    max: 10,
+    // Pool size: 10 in prod; set PG_POOL_MAX lower where the server allows few
+    // connections (the local Docker Postgres has max_connections = 10).
+    max: Number(process.env.PG_POOL_MAX) || 10,
     idleTimeoutMillis: 30_000,
     connectionTimeoutMillis: 10_000,
   });

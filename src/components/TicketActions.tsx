@@ -65,9 +65,15 @@ export function TicketActions({
   canReopen,
   hasRequesterEmail,
   participants,
+  mailboxLabel,
+  multiAssignee = false,
 }: {
   ticketId: number;
   updatedAt: string;
+  /** Branding (server-provided): e.g. "IT Operations mailbox". */
+  mailboxLabel: string;
+  /** Multi-assignee deployment: assignees are managed in AssigneesPanel instead. */
+  multiAssignee?: boolean;
   ownerId: number | null;
   status: string;
   priority: string;
@@ -355,13 +361,14 @@ export function TicketActions({
             )}
           </div>
           <p className="mt-1 text-xs text-subtle">
-            Sent from the IT Operations mailbox on the original subject line, so it stays in the
+            Sent from the {mailboxLabel} on the original subject line, so it stays in the
             requester&apos;s existing email thread. The assigned agent is copied, so the
             requester&apos;s answer reaches a person and not just the shared mailbox.
           </p>
         </div>
 
-        {/* Reassign */}
+        {/* Reassign (single-owner deployments only) */}
+        {!multiAssignee && (
         <div>
           <label className="label" htmlFor="ta-owner">Assign to</label>
           <select
@@ -381,6 +388,7 @@ export function TicketActions({
             ))}
           </select>
         </div>
+        )}
 
         {/* Correct requester + original date — collapsed by default */}
         <details className="group [&_summary::-webkit-details-marker]:hidden">

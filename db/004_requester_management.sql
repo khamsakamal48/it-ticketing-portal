@@ -7,7 +7,14 @@
 -- existing contact only needs UPDATE tickets (already granted); adding a
 -- brand-new requester inline needs INSERT/UPDATE on contacts.
 
-GRANT INSERT, UPDATE ON contacts TO portal_app;
+DO $$
+BEGIN
+  -- Guarded so this migration also runs on databases where portal_app was never
+  -- created (fresh local copies); on prod the role exists, so behaviour is unchanged.
+  IF EXISTS (SELECT FROM pg_roles WHERE rolname = 'portal_app') THEN
+    GRANT INSERT, UPDATE ON contacts TO portal_app;
+  END IF;
+END$$;
 -- contacts_id_seq is already covered by 002's
 --   GRANT USAGE, SELECT ON ALL SEQUENCES IN SCHEMA public TO portal_app;
 

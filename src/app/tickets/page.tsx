@@ -7,7 +7,7 @@ import { TicketCard } from "@/components/TicketCard";
 import { StatusBadge, PriorityBadge } from "@/components/badges";
 import { parseFilters } from "@/lib/filters";
 import { listTickets, getActiveAgents } from "@/lib/queries";
-import { getConfigValue } from "@/lib/config";
+import { getConfigValue, flag } from "@/lib/config";
 import { fmtIST } from "@/lib/datetime";
 import { encodeTicketId, encodeAgentId } from "@/lib/opaque-id";
 
@@ -36,6 +36,9 @@ export default async function TicketsPage({
   const one = (k: string) => (Array.isArray(sp[k]) ? sp[k]?.[0] : sp[k]) as string | undefined;
 
   const f = parseFilters(sp);
+  // Multi-assignee deployments: the owner filter matches any current assignee.
+  const multiAssignee = await flag("multiAssignee");
+  f.matchAssignees = multiAssignee;
   const page = Math.max(1, Number(one("page")) || 1);
   const view = one("view") === "table" ? "table" : "card";
   const sort: Sort = SORTS.includes(one("sort") as Sort) ? (one("sort") as Sort) : "updated_at";
@@ -98,7 +101,7 @@ export default async function TicketsPage({
                     <th className="px-4 py-3 font-semibold">Subject</th>
                     <th className="px-4 py-3 font-semibold">Status</th>
                     <th className="px-4 py-3 font-semibold">Priority</th>
-                    <th className="px-4 py-3 font-semibold">Owner</th>
+                    <th className="px-4 py-3 font-semibold">{multiAssignee ? "Assignees" : "Owner"}</th>
                     <th className="px-4 py-3 font-semibold">Contact</th>
                     <th className="px-4 py-3 font-semibold">Updated</th>
                   </tr>
@@ -126,7 +129,7 @@ export default async function TicketsPage({
                       <td className="px-4 py-3"><StatusBadge status={t.status} /></td>
                       <td className="px-4 py-3"><PriorityBadge priority={t.priority} /></td>
                       <td className="px-4 py-3 text-muted">
-                        {t.owner_name ?? <span className="text-critical">Unassigned</span>}
+                        {(multiAssignee ? t.assignees : t.owner_name) ?? <span className="text-critical">Unassigned</span>}
                       </td>
                       <td className="px-4 py-3 text-subtle">{t.contact_email ?? "—"}</td>
                       <td className="tabular px-4 py-3 text-subtle">{fmtIST(t.updated_at)}</td>

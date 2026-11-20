@@ -1,3 +1,4 @@
+import { getDeployment } from "@/lib/deployment";
 import Link from "next/link";
 import AppShell from "@/components/AppShell";
 import { KpiCard } from "@/components/KpiCard";
@@ -58,7 +59,9 @@ import {
   getCsatDrivers,
   getCsatByAgent,
   getRecentFeedback,
+  getPendingByAssignee,
 } from "@/lib/queries";
+import { flag } from "@/lib/config";
 import { encodeAgentId } from "@/lib/opaque-id";
 
 export const dynamic = "force-dynamic";
@@ -70,6 +73,14 @@ export default async function DashboardPage({
 }) {
   const sp = await searchParams;
   const f = parseFilters(sp);
+  // Per-deployment switches (system_config); missing keys = IT behaviour.
+  const [showAgents, showCsat, showIntent, multiAssignee] = await Promise.all([
+    flag("perAgentMetrics"),
+    flag("csatPanels"),
+    flag("aiClassification"),
+    flag("multiAssignee"),
+  ]);
+  f.matchAssignees = multiAssignee;
 
   // SLA thresholds drive the new responsiveness metrics.
   const slaEscalationHours = Number(await getConfigValue("sla_escalation_hours", "48"));
@@ -96,6 +107,7 @@ export default async function DashboardPage({
     csatDrivers,
     csatByAgent,
     recentFeedback,
+    pendingByAssignee,
   ] = await Promise.all([
     getKpis(f),
     getStatusBreakdown(f),
@@ -117,6 +129,7 @@ export default async function DashboardPage({
     getCsatDrivers(f),
     getCsatByAgent(f),
     getRecentFeedback(f),
+    multiAssignee ? getPendingByAssignee() : Promise.resolve([]),
   ]);
 
   const n = (v: string | null | undefined) => Number(v ?? 0);
@@ -154,6 +167,8 @@ export default async function DashboardPage({
   const csatLow = csatBreakdown.filter((r) => Number(r.rating) <= 2).reduce((s, r) => s + n(r.count), 0);
   // Per-agent CSAT cell. Hidden below 3 answers: one bad survey shouldn't read as 0%.
   const CSAT_MIN_N = 3;
+  // Agent table: equal-width numeric columns so right-aligned values sit evenly spaced.
+  const AGENT_GRID = "minmax(0,2fr) repeat(6, minmax(0,1fr))";
   const csatAgentMap = new Map(csatByAgent.map((r) => [r.agent_id, r]));
   const agentCsat = (agentId: number | null) => {
     const r = csatAgentMap.get(agentId);
@@ -201,7 +216,7 @@ export default async function DashboardPage({
                   "-apple-system,BlinkMacSystemFont,'SF Pro Display','Helvetica Neue',Arial,sans-serif",
               }}
             >
-              IT & Operations Overview
+              {getDeployment().teamLabel} Overview
             </h2>
             {/* Skill: subtitle — 10px / uppercase / letter-spacing 0.16em */}
             <p
@@ -283,6 +298,34 @@ export default async function DashboardPage({
           </ChartCard>
         </div>
 
+        {multiAssignee && (
+          <div className="card p-5">
+            <div className="mb-3 flex items-center gap-2">
+              <h3 className="text-sm font-semibold text-fg">Pending by assignee</h3>
+              <InfoTip text="Open and on-hold tickets currently assigned to each person or team list. Shows outstanding work, not performance." />
+            </div>
+            {pendingByAssignee.length === 0 ? (
+              <p className="text-sm text-subtle">Nothing pending.</p>
+            ) : (
+              <div className="grid grid-cols-1 gap-x-6 gap-y-1 text-sm sm:grid-cols-2 lg:grid-cols-3">
+                {pendingByAssignee.map((r) => (
+                  <Link
+                    key={r.user_id}
+                    href={queueHref({ owner: encodeAgentId(r.user_id), status: "open,on_hold" })}
+                    className="flex items-center justify-between rounded px-2 py-1.5 transition-colors hover:bg-surface-2"
+                  >
+                    <span className="truncate text-fg">{r.name}</span>
+                    <span className="tabular text-muted">
+                      {Number(r.open)} open{Number(r.on_hold) > 0 ? ` · ${Number(r.on_hold)} on hold` : ""}
+                    </span>
+                  </Link>
+                ))}
+              </div>
+            )}
+          </div>
+        )}
+
+        {showAgents && (
         <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
           {(() => {
             // 44px per agent row, minimum 256px (h-64 baseline)
@@ -323,7 +366,7 @@ export default async function DashboardPage({
                   </div>
                   {/* CSS-grid layout — proportional fr columns, guaranteed alignment */}
                   <div style={{ display: "flex", flexDirection: "column", fontSize: "13px" }}>
-                    <div style={{ display: "grid", gridTemplateColumns: "2fr 0.9fr 0.8fr 0.7fr 0.9fr 1fr 1.1fr", columnGap: "8px", fontSize: "10px", fontWeight: 600, textTransform: "uppercase", letterSpacing: "0.1em", color: "rgb(var(--subtle))", paddingBottom: "6px" }}>
+                    <div style={{ display: "grid", gridTemplateColumns: AGENT_GRID, columnGap: "8px", fontSize: "10px", fontWeight: 600, textTransform: "uppercase", letterSpacing: "0.1em", color: "rgb(var(--subtle))", paddingBottom: "6px" }}>
                       <span>Agent</span>
                       <span style={{ textAlign: "right" }}>Resolved</span>
                       <span style={{ textAlign: "right" }}>Avg h</span>
@@ -336,7 +379,7 @@ export default async function DashboardPage({
                       <p style={{ paddingTop: "12px", color: "rgb(var(--subtle))" }}>No tickets in range.</p>
                     )}
                     {agentPerf.map((r) => (
-                      <Link key={r.agent} href={queueHref({ owner: ownerValue(r.agent_id) })} style={{ borderTop: "1px solid rgb(var(--border) / 0.6)", display: "grid", gridTemplateColumns: "2fr 0.9fr 0.8fr 0.7fr 0.9fr 1fr 1.1fr", columnGap: "8px", paddingTop: "7px", paddingBottom: "7px", textDecoration: "none", cursor: "pointer" }} className="transition-colors hover:bg-surface-2">
+                      <Link key={r.agent} href={queueHref({ owner: ownerValue(r.agent_id) })} style={{ borderTop: "1px solid rgb(var(--border) / 0.6)", display: "grid", gridTemplateColumns: AGENT_GRID, columnGap: "8px", paddingTop: "7px", paddingBottom: "7px", textDecoration: "none", cursor: "pointer" }} className="transition-colors hover:bg-surface-2">
                           <span style={{ fontWeight: 500, color: "rgb(var(--fg))" }}>{r.agent}</span>
                           <span style={{ textAlign: "right", fontVariantNumeric: "tabular-nums", color: "rgb(var(--fg))" }}>{n(r.resolved)}</span>
                           <span style={{ textAlign: "right", fontVariantNumeric: "tabular-nums", color: "rgb(var(--muted))" }}>{r.avg_resolution_h != null ? n(r.avg_resolution_h).toFixed(1) : "—"}</span>
@@ -356,6 +399,7 @@ export default async function DashboardPage({
             );
           })()}
         </div>
+        )}
 
         {/* ───────────────── Operational analytics (new section) ───────────────── */}
         <div className="pt-2">
@@ -400,6 +444,7 @@ export default async function DashboardPage({
 
         {/* Root-cause: intent · sentiment */}
         <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
+          {showIntent && (
           <ChartCard title="Intent mix" chartHeight={Math.max(256, intent.length * 40)} info={VISUAL_INFO.intent_mix}>
             <BucketBars
               data={intent.map((r) => ({ label: titleCase(r.intent) ?? r.intent, count: Number(r.count) }))}
@@ -409,6 +454,7 @@ export default async function DashboardPage({
               linkValueMap={intentValueMap}
             />
           </ChartCard>
+          )}
           <ChartCard title="Sentiment" info={VISUAL_INFO.sentiment}>
             <DonutBreakdown
               data={sentiment.map((r) => ({ name: r.sentiment, value: Number(r.count) }))}
@@ -441,6 +487,7 @@ export default async function DashboardPage({
         </div>
 
         {/* ───────────────── Customer feedback (CSAT) ───────────────── */}
+        {showCsat && (<>
         <div className="pt-2">
           <h2
             className="text-gradient"
@@ -495,6 +542,7 @@ export default async function DashboardPage({
             </div>
           </ChartCard>
         </div>
+        </>)}
       </div>
     </AppShell>
   );

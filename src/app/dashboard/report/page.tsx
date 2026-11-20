@@ -1,3 +1,4 @@
+import { getDeployment } from "@/lib/deployment";
 // Print/PDF view of the dashboard. Reached by the headless-Chrome renderer via a
 // signed token (see /api/dashboard/pdf + middleware). Renders the same KPIs and
 // charts as /dashboard but WITHOUT the app shell/nav, on a white page, with
@@ -17,6 +18,7 @@ import {
   CSAT_PALETTE,
 } from "@/components/charts";
 import { CsatDrivers, RecentFeedback, RATING_SLUG } from "@/components/CsatPanels";
+import { flag } from "@/lib/config";
 import { KpiCard } from "@/components/KpiCard";
 import { DailyStatusBanner } from "@/components/DailyStatusBanner";
 import { ReportReady } from "@/components/ReportReady";
@@ -70,6 +72,13 @@ export default async function DashboardReportPage({
 }) {
   const sp = await searchParams;
   const f = parseFilters(sp);
+  const [showAgents, showCsat, showIntent, multiAssignee] = await Promise.all([
+    flag("perAgentMetrics"),
+    flag("csatPanels"),
+    flag("aiClassification"),
+    flag("multiAssignee"),
+  ]);
+  f.matchAssignees = multiAssignee;
 
   const slaEscalationHours = Number(await getConfigValue("sla_escalation_hours", "48"));
   const slaFirstResponseHours = Number(await getConfigValue("sla_first_response_hours", "23"));
@@ -162,7 +171,7 @@ export default async function DashboardReportPage({
       <div className="mb-6 flex items-end justify-between gap-4 border-b border-border pb-4">
         <div>
           <h1 style={{ fontSize: "24px", fontWeight: 700, letterSpacing: "-0.02em", color: "#0B1220" }}>
-            IT &amp; Operations Dashboard
+            {getDeployment().teamLabel} Dashboard
           </h1>
           <p style={{ fontSize: "12px", color: "#5B6473", marginTop: "4px" }}>
             Date range: {rangeLabel}
@@ -214,10 +223,14 @@ export default async function DashboardReportPage({
           </ChartCard>
         </div>
 
+        {(showAgents || showIntent) && (
         <div className="grid grid-cols-2 gap-4">
+          {showAgents && (
           <ChartCard title="Tickets by agent" chartHeight={Math.max(256, byAgent.length * 44)}>
             <AgentBars data={byAgent.map((r) => ({ agent: r.agent, count: Number(r.count) }))} showValues />
           </ChartCard>
+          )}
+          {showIntent && (
           <ChartCard title="Intent mix" chartHeight={Math.max(256, intent.length * 40)}>
             <BucketBars
               data={intent.map((r) => ({ label: titleCase(r.intent) ?? r.intent, count: Number(r.count) }))}
@@ -226,7 +239,9 @@ export default async function DashboardReportPage({
               showValues
             />
           </ChartCard>
+          )}
         </div>
+        )}
 
         <div className="grid grid-cols-2 gap-4">
           <ChartCard title="Priority mix">
@@ -259,6 +274,7 @@ export default async function DashboardReportPage({
         </div>
 
         {/* Customer feedback (CSAT) */}
+        {showCsat && (<>
         <div className="grid grid-cols-4 gap-3">
           <KpiCard label="CSAT" value={csatPct} sub={`${n(csat?.satisfied)} of ${csatResponded} rated 4–5`} accent="green" icon={Smile} hero />
           <KpiCard label="Avg Rating" value={csatAvg} sub="out of 5" accent="blue" icon={Star} hero />
@@ -284,6 +300,7 @@ export default async function DashboardReportPage({
             </div>
           </ChartCard>
         </div>
+        </>)}
       </div>
     </div>
   );

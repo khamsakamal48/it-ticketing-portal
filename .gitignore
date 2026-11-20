@@ -2,11 +2,14 @@
 /node_modules
 # next
 /.next
+/.next-sch
 /out
 # env / secrets
 .env
 .env*.local
 .env.production
+.env.scholarship
+.env.bak-*
 # docker secrets / tunnel keys
 /docker/secrets
 *.key

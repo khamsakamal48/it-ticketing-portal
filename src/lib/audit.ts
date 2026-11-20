@@ -13,7 +13,10 @@ export type AuditAction =
   | "mark_irrelevant"
   | "turnaround_set"
   | "requester_change"
-  | "original_date_change";
+  | "original_date_change"
+  | "assignees_change"
+  | "reminder_sent"
+  | "assignee_renotify";
 
 export interface AuditEntry {
   ticketId: number;

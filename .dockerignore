@@ -7,3 +7,6 @@ node_modules
 .DS_Store
 docker/secrets
 README.md
+.env.production
+.env.scholarship
+.env.bak-*

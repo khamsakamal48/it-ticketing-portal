@@ -1,6 +1,6 @@
 import type { DefaultSession } from "next-auth";
 
-type Role = "agent" | "manager" | "admin";
+type Role = "agent" | "manager" | "admin" | "senior_manager";
 
 // Carry the portal user id + role (from the `users` table) on the session/JWT.
 declare module "next-auth" {
