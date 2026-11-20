@@ -1,6 +1,7 @@
 // Portal-role rights for a TEAM database (e.g. scholarship). Never needed on IT
 // prod (IT's portal_app rights come from db/002 + migrations).
-// Gives PORTAL_ROLE exactly IT's portal_app rights plus ticket_assignees, and on
+// Gives PORTAL_ROLE exactly IT's portal_app rights plus ticket_assignees and
+// adding users (Admin page), and on
 // any database other than it_ticketing_system strips portal_app (which the
 // migrations re-grant whenever that role exists on the server).
 // Run as the database owner, right after every migrate (npm run db:deploy).
@@ -38,6 +39,8 @@ const statements = [
   `GRANT SELECT ON ALL TABLES IN SCHEMA public TO ${r}`,
   `GRANT INSERT, UPDATE ON tickets, messages, ticket_tags, contacts, ticket_assignees TO ${r}`,
   `GRANT INSERT ON ticket_audit_log TO ${r}`,
+  // Admin page "Add agent" (assignee-only users, can_login = false).
+  `GRANT INSERT, UPDATE (name, is_active) ON users TO ${r}`,
   `GRANT SELECT, UPDATE ON ticket_feedback TO ${r}`,
   `GRANT USAGE, SELECT ON ALL SEQUENCES IN SCHEMA public TO ${r}`,
   `ALTER DEFAULT PRIVILEGES IN SCHEMA public GRANT SELECT ON TABLES TO ${r}`,

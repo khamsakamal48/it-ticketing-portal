@@ -8,7 +8,6 @@
 -- are added in a separate, uncommitted file built from the team's list.
 
 INSERT INTO system_config (config_key, config_value, description) VALUES
-  ('assignment_strategy', 'manual', 'Assignment strategy: round_robin, keyword_based, manual'),
   ('auto_ack_enabled', 'true', 'Enable auto-acknowledgement emails'),
   ('business_days', 'Mon,Tue,Wed,Thu,Fri', 'Business days'),
   ('business_hours_end', '18:30', 'Business hours end time (HH:MM)'),

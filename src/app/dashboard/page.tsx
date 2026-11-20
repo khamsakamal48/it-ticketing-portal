@@ -157,6 +157,13 @@ export default async function DashboardPage({
   const agingData = AGING_ORDER
     .map((b) => ({ label: b, count: n(aging.find((r) => r.bucket === b)?.count) }))
     .filter((r) => r.count > 0);
+  const flowData = flow.map((r) => ({ day: r.day, created: Number(r.created), closed: Number(r.closed) }));
+  // Placed beside inflow (intent on) or beside sentiment (intent off).
+  const agingCard = (
+    <ChartCard title="Backlog aging" info={VISUAL_INFO.backlog_aging}>
+      <BucketBars data={agingData} emptyMsg="No open tickets." labelWidth={56} linkParam="agebucket" extraParams={{ status: "open" }} />
+    </ChartCard>
+  );
 
   // ----- CSAT (post-closure feedback) -----
   const csatResponded = n(csat?.responded);
@@ -430,21 +437,27 @@ export default async function DashboardPage({
           </p>
         </div>
 
-        {/* Flow: inflow vs outflow + backlog aging */}
-        <div className="grid grid-cols-1 gap-4 lg:grid-cols-3">
-          <div className="lg:col-span-2">
-            <ChartCard title="Inflow vs outflow" info={VISUAL_INFO.inflow_outflow}>
-              <FlowTrend data={flow.map((r) => ({ day: r.day, created: Number(r.created), closed: Number(r.closed) }))} linkByDay />
-            </ChartCard>
+        {/* Flow: inflow vs outflow (+ backlog aging when intent is on). Without
+            intent (Scholarship), inflow takes the full row and backlog aging
+            moves next to sentiment so neither row leaves an empty slot. */}
+        {showIntent ? (
+          <div className="grid grid-cols-1 gap-4 lg:grid-cols-3">
+            <div className="lg:col-span-2">
+              <ChartCard title="Inflow vs outflow" info={VISUAL_INFO.inflow_outflow}>
+                <FlowTrend data={flowData} linkByDay />
+              </ChartCard>
+            </div>
+            {agingCard}
           </div>
-          <ChartCard title="Backlog aging" info={VISUAL_INFO.backlog_aging}>
-            <BucketBars data={agingData} emptyMsg="No open tickets." labelWidth={56} linkParam="agebucket" extraParams={{ status: "open" }} />
+        ) : (
+          <ChartCard title="Inflow vs outflow" info={VISUAL_INFO.inflow_outflow}>
+            <FlowTrend data={flowData} linkByDay />
           </ChartCard>
-        </div>
+        )}
 
-        {/* Root-cause: intent · sentiment */}
+        {/* Root-cause: intent · sentiment (or backlog aging · sentiment) */}
         <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
-          {showIntent && (
+          {showIntent ? (
           <ChartCard title="Intent mix" chartHeight={Math.max(256, intent.length * 40)} info={VISUAL_INFO.intent_mix}>
             <BucketBars
               data={intent.map((r) => ({ label: titleCase(r.intent) ?? r.intent, count: Number(r.count) }))}
@@ -454,6 +467,8 @@ export default async function DashboardPage({
               linkValueMap={intentValueMap}
             />
           </ChartCard>
+          ) : (
+            agingCard
           )}
           <ChartCard title="Sentiment" info={VISUAL_INFO.sentiment}>
             <DonutBreakdown

@@ -686,8 +686,8 @@ export async function getActiveAgents() {
   // assignee pickers, filter facets, and the admin agent list. Seniors are only
   // looped in via the L3 SLA escalation (>48h). Enforced server-side in
   // activeAgent() (reassignTicket) so the dropdown is UX, not the security edge.
-  return query<{ id: number; name: string; email: string; role: string }>(
-    `SELECT id, name, email, role FROM users
+  return query<{ id: number; name: string; email: string; role: string; can_login: boolean }>(
+    `SELECT id, name, email, role, can_login FROM users
        WHERE is_active = true AND role IS DISTINCT FROM 'senior_manager'
        ORDER BY name`
   );
