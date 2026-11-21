@@ -413,11 +413,14 @@ export async function changeStatus(
       const actor = await requireActor();
       if (!isValidStatus(newStatus)) throw new RuleError("Invalid status.");
       if (newStatus === "on_hold") assertHold(hold?.reason, hold?.days);
+      // Coordinator-led teams (multi-assignee): the coordinator answers and closes
+      // tickets that need no fundraiser, so no assignee is required.
+      const multiAssignee = await flag("multiAssignee");
       const effect = await withTransaction(async (client) => {
         const t = await lockTicket(client, ticketId, expectedUpdatedAt);
         assertTransition(t.status, newStatus);
-        // Closing requires an active owner (n8n closure rule).
-        assertOwnerRequiredForClose(newStatus, t.ticket_owner_id);
+        // Closing requires an active owner (n8n closure rule), except on coordinator-led teams.
+        if (!multiAssignee) assertOwnerRequiredForClose(newStatus, t.ticket_owner_id);
         // Reopening is manager-only, except an agent undoing their own close.
         if (t.status === "closed" && newStatus === "open")
           assertCanReopen(
@@ -625,24 +628,19 @@ export async function sendReply(
         const t = await lockTicket(client, ticketId, expectedUpdatedAt);
         if (!t.contact_email)
           throw new RuleError("This ticket has no requester email — fix the requester first.");
-        assertOwnerRequiredForReply(t.ticket_owner_id);
+        // Coordinator-led teams: nobody is copied, so no assignee is needed to reply.
+        if (!multiAssignee) assertOwnerRequiredForReply(t.ticket_owner_id);
         // Copy the assigned owner and the sender (usually the same person, but a
         // colleague may answer on someone else's ticket — both stay in the loop).
-        const owner = await activeAgent(client, t.ticket_owner_id!);
+        // Multi-assignee (coordinator-led) teams: the assignees are fundraisers who
+        // never write to donors, so only the sender is copied (n8n also drops the
+        // derived owner there).
+        const owner = multiAssignee ? null : await activeAgent(client, t.ticket_owner_id!);
         const ccList = [owner?.email, actor.email];
-        if (multiAssignee) {
-          // Everyone currently working the ticket stays in the loop.
-          const { rows } = await client.query<{ email: string }>(
-            `SELECT u.email FROM ticket_assignees ta JOIN users u ON u.id = ta.user_id
-              WHERE ta.ticket_id = $1 AND ta.removed_at IS NULL`,
-            [ticketId]
-          );
-          ccList.push(...rows.map((r) => r.email));
-        }
         const cc = [...new Set(ccList.filter(Boolean).map((e) => e!.toLowerCase()))];
         if (alsoClose && t.status !== "closed") {
           assertTransition(t.status, "closed");
-          assertOwnerRequiredForClose("closed", t.ticket_owner_id);
+          if (!multiAssignee) assertOwnerRequiredForClose("closed", t.ticket_owner_id);
         }
 
         // sender_type='agent', note_type='message' — a customer-visible reply,

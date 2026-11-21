@@ -9,9 +9,10 @@ export default function RemoveAgentButton({ userId, name }: { userId: number; na
 
   const onClick = () => {
     const ok = window.confirm(
-      `Remove ${name}?\n\nThey will be taken off every open or on-hold ticket and can no longer be assigned. ` +
-        `Closed tickets keep them in their history. Emails they send to the mailbox afterwards are treated ` +
-        `like any outside sender's, not as internal notes.`
+      `Remove ${name}?\n\nThey will be taken off every open or on-hold ticket (a ticket left with no one ` +
+        `assigned stays with the coordinator) and can no longer be assigned. ` +
+        `Closed tickets keep them in their history. Emails they send to the mailbox afterwards are still saved ` +
+        `as internal notes, and the coordinator is alerted that an unregistered sender replied.`
     );
     if (!ok) return;
     setError(null);

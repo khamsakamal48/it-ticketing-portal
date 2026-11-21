@@ -81,8 +81,8 @@ export async function addAgent(_prev: AddAgentResult | null, form: FormData): Pr
 
 // Removes an assignee-only agent: deactivates the users row (it is kept for
 // history; tickets and audit rows reference it) and takes them off every open
-// or on-hold ticket. Refused while they are the only assignee on such a ticket,
-// so no active ticket is left unowned. Closed tickets keep their assignees.
+// or on-hold ticket. A ticket left with no assignee stays with the coordinator,
+// who can reply and close without one. Closed tickets keep their assignees.
 export async function removeAgent(userId: number): Promise<AddAgentResult> {
   const session = await auth();
   if (!session?.user?.id || !session.user.email) return { ok: false, error: "Not authenticated." };
@@ -104,10 +104,8 @@ export async function removeAgent(userId: number): Promise<AddAgentResult> {
       return { ok: false, error: `${u.name} signs in to the portal (${u.role}); ask IT to remove portal users.` };
 
     // Lock the affected tickets in id order (same order as other writers).
-    const { rows: tickets } = await client.query<{ ticket_id: number; others: number }>(
-      `SELECT t.id AS ticket_id,
-              (SELECT COUNT(*)::int FROM ticket_assignees o
-                WHERE o.ticket_id = t.id AND o.removed_at IS NULL AND o.user_id <> $1) AS others
+    const { rows: tickets } = await client.query<{ ticket_id: number }>(
+      `SELECT t.id AS ticket_id
          FROM tickets t
         WHERE t.status IN ('open', 'on_hold')
           AND EXISTS (SELECT 1 FROM ticket_assignees ta
@@ -116,15 +114,6 @@ export async function removeAgent(userId: number): Promise<AddAgentResult> {
         FOR UPDATE OF t`,
       [id]
     );
-    const sole = tickets.filter((t) => t.others === 0).map((t) => `#${t.ticket_id}`);
-    if (sole.length) {
-      const list = sole.slice(0, 8).join(", ") + (sole.length > 8 ? ` and ${sole.length - 8} more` : "");
-      return {
-        ok: false,
-        error: `${u.name} is the only assignee on ${sole.length} open ticket(s): ${list}. Assign someone else there first.`,
-      };
-    }
-
     for (const t of tickets) {
       const { rows: before } = await client.query<{ name: string }>(
         `SELECT u.name FROM ticket_assignees ta JOIN users u ON u.id = ta.user_id

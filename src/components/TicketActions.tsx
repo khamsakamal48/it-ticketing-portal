@@ -256,7 +256,7 @@ export function TicketActions({
   // both; this just explains why the box is disabled instead of failing on send.
   const replyBlocked = !hasRequesterEmail
     ? "This ticket has no requester email — fix the requester above before replying."
-    : !ownerId
+    : !ownerId && !multiAssignee
     ? "Assign an agent to this ticket first — the assigned agent is copied on every reply."
     : null;
 

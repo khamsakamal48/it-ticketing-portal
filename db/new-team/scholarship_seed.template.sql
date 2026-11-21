@@ -35,7 +35,7 @@ INSERT INTO system_config (config_key, config_value, description) VALUES
   ('per_agent_metrics_enabled', 'false', 'Per-agent dashboard panels and owner history (true/false)'),
   ('multi_assignee_enabled', 'true', 'Several assignees per ticket via ticket_assignees; owner derived (true/false)'),
   ('manual_reminder_enabled', 'true', 'Send reminder button (true/false)'),
-  ('agent_email_mode', 'marked', 'direct = IT behaviour; marked = [TO DONOR]/[INTERNAL] subject markers'),
+  ('agent_email_mode', 'coordinator', 'direct = IT behaviour; coordinator = fundraiser emails are internal notes + coordinator alert, only the coordinator answers donors'),
   ('hold_close_prompt_enabled', 'false', 'Close prompt in hold reminder 2 and level-24 notice (true/false)'),
   ('default_assignee_emails', :'default_assignee_emails', 'Comma-separated emails auto-assigned to new tickets (team leads)')
 ON CONFLICT (config_key) DO UPDATE SET config_value = EXCLUDED.config_value;
