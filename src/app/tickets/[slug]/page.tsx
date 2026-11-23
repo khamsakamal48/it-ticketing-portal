@@ -1,16 +1,17 @@
 import { getDeployment } from "@/lib/deployment";
 import Link from "next/link";
 import { notFound } from "next/navigation";
-import { ArrowLeft, Sparkles } from "lucide-react";
+import { ArrowLeft, Paperclip, Sparkles } from "lucide-react";
 import AppShell from "@/components/AppShell";
 import { StatusBadge, PriorityBadge } from "@/components/badges";
 import { TicketActions } from "@/components/TicketActions";
 import { AssigneesPanel } from "@/components/AssigneesPanel";
-import { flag } from "@/lib/config";
+import { flag, getFlag } from "@/lib/config";
 import ResolutionBreakdown from "@/components/ResolutionBreakdown";
 import {
   getTicket,
   getTicketMessages,
+  getTicketAttachments,
   getTicketTags,
   getTicketAudit,
   getTicketSpans,
@@ -19,6 +20,7 @@ import {
   getTicketFeedback,
   getTicketAssignees,
   getLastReminder,
+  getTicketInlineImages,
 } from "@/lib/queries";
 import { FEEDBACK_REASONS, RATING_EMOJI, RATING_LABELS } from "@/lib/feedback";
 import { fmtIST, fmtDurationHours } from "@/lib/datetime";
@@ -26,7 +28,7 @@ import { decodeTicketId } from "@/lib/ticket-id";
 import { isHtmlBody, sanitizeEmailHtml } from "@/lib/sanitize-email";
 import { parseForwardedOriginal } from "@/lib/forwarded-email";
 import { auth, isManager } from "@/lib/auth";
-import { HOLD_REASONS, type HoldReason } from "@/lib/ticket-rules";
+import { holdReasonLabel, holdReasonOptions, INTERNAL_HOLD_REASONS } from "@/lib/ticket-rules";
 
 export const dynamic = "force-dynamic";
 
@@ -60,7 +62,7 @@ export default async function TicketDetail({
   const [assignees, lastReminder] = multiAssignee
     ? await Promise.all([getTicketAssignees(ticketId), manualReminder ? getLastReminder(ticketId) : null])
     : [[], null];
-  const [session, messages, tags, audit, spans, agents, contacts, feedback] = await Promise.all([
+  const [session, messages, tags, audit, spans, agents, contacts, feedback, inlineImages, attachments, holdEmailsRequester] = await Promise.all([
     auth(),
     getTicketMessages(ticketId),
     getTicketTags(ticketId),
@@ -69,7 +71,18 @@ export default async function TicketDetail({
     getActiveAgents(),
     getContacts(),
     getTicketFeedback(ticketId),
+    getTicketInlineImages(ticketId),
+    getTicketAttachments(ticketId),
+    // Same default as n8n: off on coordinator-led teams, on for IT.
+    getFlag("hold_notify_requester_enabled", !multiAssignee),
   ]);
+  const teamShort = getDeployment().teamShort;
+  const fmtBytes = (b: number) =>
+    b >= 1048576 ? `${(b / 1048576).toFixed(1)} MB` : `${Math.max(1, Math.round(b / 1024))} KB`;
+  const inlineImageUrl = (messageId: number) => (cid: string) => {
+    const known = inlineImages.get(messageId)?.get(cid.toLowerCase());
+    return known ? `/api/inline-image/${messageId}/${encodeURIComponent(known)}` : null;
+  };
 
   // Best-effort: detect the real requester + original send-time from the quoted
   // block in the first customer message, to pre-fill the correction form.
@@ -104,9 +117,9 @@ export default async function TicketDetail({
   };
 
   // Cumulative hold time (subtracted from resolution). Include any still-open hold
-  // span so an in-progress hold is reflected too — unless it is an Agent hold,
-  // which counts against TAT and is never subtracted.
-  const openHoldSeconds = ticket.on_hold_since && ticket.hold_reason !== "agent"
+  // span so an in-progress hold is reflected too — unless it is an Agent or
+  // Fundraiser hold, which counts against TAT and is never subtracted.
+  const openHoldSeconds = ticket.on_hold_since && !INTERNAL_HOLD_REASONS.includes(ticket.hold_reason ?? "")
     ? Math.max(0, (Date.now() - new Date(ticket.on_hold_since).getTime()) / 1000)
     : 0;
   const holdHours = (Number(ticket.total_hold_seconds ?? 0) + openHoldSeconds) / 3600;
@@ -131,7 +144,8 @@ export default async function TicketDetail({
               <StatusBadge status={ticket.status} />
               {ticket.status === "on_hold" && ticket.hold_reason && (
                 <span className="badge bg-pending/10 text-pending ring-1 ring-inset ring-pending/20">
-                  waiting on {HOLD_REASONS[ticket.hold_reason as HoldReason] ?? ticket.hold_reason}
+                  waiting on {holdReasonLabel(ticket.hold_reason, multiAssignee, teamShort)}
+                  {ticket.hold_with && `: ${ticket.hold_with}`}
                   {ticket.hold_until && ` · until ${fmtIST(ticket.hold_until)}`}
                 </span>
               )}
@@ -190,10 +204,51 @@ export default async function TicketDetail({
                     {isHtmlBody(m.body) ? (
                       <div
                         className="email-html leading-relaxed text-fg"
-                        dangerouslySetInnerHTML={{ __html: sanitizeEmailHtml(m.body ?? "") }}
+                        dangerouslySetInnerHTML={{ __html: sanitizeEmailHtml(m.body ?? "", { inlineImage: inlineImageUrl(m.id) }) }}
                       />
                     ) : (
                       <div className="whitespace-pre-wrap leading-relaxed text-fg">{m.body}</div>
+                    )}
+                    {(attachments.get(m.id)?.length ?? 0) > 0 && (
+                      <ul className="mt-3 flex flex-wrap gap-2 border-t border-border/70 pt-3" aria-label="Attachments">
+                        {attachments.get(m.id)!.map((a) => {
+                          const note =
+                            a.kind === "item"
+                              ? "forwarded email, open it in the mailbox"
+                              : a.kind === "reference"
+                              ? "cloud link, open it in the mailbox"
+                              : !a.has_data
+                              ? "too large to keep here, open it in the mailbox"
+                              : null;
+                          const inner = (
+                            <>
+                              <Paperclip size={13} className="shrink-0" aria-hidden />
+                              <span className="max-w-[16rem] truncate">{a.name}</span>
+                              <span className="tabular text-subtle">{fmtBytes(Number(a.size_bytes))}</span>
+                            </>
+                          );
+                          return (
+                            <li key={a.id}>
+                              {note ? (
+                                <span
+                                  title={`${a.name}: ${note}`}
+                                  className="inline-flex items-center gap-1.5 rounded-md border border-dashed border-border px-2.5 py-1 text-xs text-muted"
+                                >
+                                  {inner}
+                                </span>
+                              ) : (
+                                <a
+                                  href={`/api/attachment/${a.id}`}
+                                  title={`Download ${a.name}`}
+                                  className="inline-flex items-center gap-1.5 rounded-md border border-border bg-surface px-2.5 py-1 text-xs text-fg transition-colors hover:border-brand/40 hover:text-brand"
+                                >
+                                  {inner}
+                                </a>
+                              )}
+                            </li>
+                          );
+                        })}
+                      </ul>
                     )}
                   </div>
                 ))}
@@ -249,6 +304,10 @@ export default async function TicketDetail({
               hasRequesterEmail={Boolean(ticket.contact_email)}
               mailboxLabel={getDeployment().mailboxLabel}
               multiAssignee={multiAssignee}
+              holdOptions={holdReasonOptions(multiAssignee, teamShort)}
+              holdAssignees={assignees.map((a) => ({ id: a.user_id, name: a.name }))}
+              requesterLabel={ticket.contact_email ?? ""}
+              holdEmailsRequester={holdEmailsRequester}
               participants={(ticket.participant_emails ?? "")
                 .split(",")
                 .map((e) => e.trim())

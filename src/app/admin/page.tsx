@@ -4,6 +4,10 @@ import { getConfig, flag } from "@/lib/config";
 import { auth, isManager } from "@/lib/auth";
 import AddAgentForm from "./AddAgentForm";
 import RemoveAgentButton from "./RemoveAgentButton";
+import DefaultAssigneesCard from "./DefaultAssigneesCard";
+import AckSettingsCard from "./AckSettingsCard";
+import HoldEmailCard from "./HoldEmailCard";
+import { getDeployment } from "@/lib/deployment";
 
 export const dynamic = "force-dynamic";
 
@@ -20,6 +24,15 @@ export default async function AdminPage() {
   // round-robin/keyword assignment_strategy row means nothing there. n8n never
   // reads it. Admins/managers can add assignee-only agents there.
   const canAddAgents = multiAssignee && isManager(session?.user?.role);
+
+  // Team settings the coordinator edits (db/011 set_team_setting). Same gate as
+  // adding agents: multi-assignee deployments, managers/admins.
+  const canEditSettings = canAddAgents;
+  const defaultAssigneesEnabled = (config.default_assignees_enabled ?? "true").trim().toLowerCase() !== "false";
+  const defaultAssigneeEmails = (config.default_assignee_emails ?? "").split(",").map((e) => e.trim()).filter(Boolean);
+  const ackEnabled = (config.ack_enabled ?? "true").trim().toLowerCase() !== "false";
+  // Off unless explicitly 'true' (same default as n8n on coordinator-led teams).
+  const holdEmailsRequester = (config.hold_notify_requester_enabled ?? "").trim().toLowerCase() === "true";
 
   const slaKeys = Object.keys(config)
     .filter((k) => k.startsWith("sla") || k.startsWith("business") || k.includes("assignment") || k.includes("reminder"))
@@ -96,6 +109,31 @@ export default async function AdminPage() {
           </div>
         </div>
       </div>
+
+      {canEditSettings && (
+        <div className="space-y-5">
+          <div>
+            <h3 className="text-lg font-semibold tracking-tight text-fg">Team settings</h3>
+            <p className="mt-1 text-sm text-subtle">Changes apply to the next email that arrives.</p>
+          </div>
+          <DefaultAssigneesCard
+            agents={agents.map((a) => ({ id: a.id, name: a.name, email: a.email }))}
+            initialEnabled={defaultAssigneesEnabled}
+            initialEmails={defaultAssigneeEmails}
+          />
+          <AckSettingsCard
+            initialEnabled={ackEnabled}
+            initialHtml={config.ack_body_html ?? ""}
+            team={getDeployment().teamLabel}
+            brand={{
+              name: (config.email_brand_name ?? "").trim() || getDeployment().teamLabel,
+              tagline: config.email_brand_tagline ?? "",
+              footer: config.email_brand_footer ?? "",
+            }}
+          />
+          <HoldEmailCard initialEnabled={holdEmailsRequester} />
+        </div>
+      )}
       </div>
     </AppShell>
   );

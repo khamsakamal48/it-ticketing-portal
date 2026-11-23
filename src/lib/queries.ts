@@ -19,6 +19,7 @@ export interface TicketFilters {
   requester?: string; // contact email
   minAgeH?: number; // open-or-any ticket older than N hours (SLA breach)
   ageBucket?: string; // discrete backlog-aging bucket (see AGE_BUCKET_SQL)
+  hold?: string[]; // on-hold tickets waiting on these hold_reason values ('unspecified' = NULL)
 }
 
 // Discrete age buckets → static interval SQL on (now() - created_at). Keys are
@@ -81,6 +82,7 @@ function buildWhere(f: TicketFilters): { clause: string; params: unknown[] } {
   // Same rule as the "Breaching Now" KPI so the drill-down list matches the count.
   if (f.minAgeH != null) add(breachedNow("$?"), f.minAgeH);
   if (f.ageBucket && AGE_BUCKET_SQL[f.ageBucket]) conds.push(`(${AGE_BUCKET_SQL[f.ageBucket]})`);
+  if (f.hold?.length) add("t.status = 'on_hold' AND COALESCE(t.hold_reason, 'unspecified') = ANY($?)", f.hold);
   if (f.search) {
     // Match subject (fuzzy) OR exact ticket id. Two placeholders, one value.
     params.push(`%${f.search}%`);
@@ -509,6 +511,9 @@ export interface TicketRow {
   turnaround_at: string | null;
   /** Current assignee names (multi-assignee deployments); null on IT. */
   assignees: string | null;
+  /** On hold: who it waits on (business | vendor | agent | assignee) and the name (db/013). */
+  hold_reason: string | null;
+  hold_with: string | null;
 }
 
 // ---------------- Multi-assignee deployments ----------------
@@ -578,6 +583,7 @@ export async function listTickets(
             u.name AS owner_name, t.ticket_owner_id AS owner_id,
             c.email AS contact_email,
             t.created_at, t.updated_at, t.escalation_level, t.turnaround_at,
+            t.hold_reason, t.hold_with,
             (SELECT string_agg(au.name, ', ' ORDER BY ta.assigned_at, ta.id)
                FROM ticket_assignees ta JOIN users au ON au.id = ta.user_id
               WHERE ta.ticket_id = t.id AND ta.removed_at IS NULL) AS assignees
@@ -601,7 +607,6 @@ export async function getTicket(id: number) {
       turnaround_at: string | null;
       on_hold_since: string | null;
       total_hold_seconds: string | number | null;
-      hold_reason: string | null;
       hold_until: string | null;
       closed_at: string | null;
       first_agent_reply_at: string | null;
@@ -613,7 +618,7 @@ export async function getTicket(id: number) {
             c.email AS contact_email, t.contact_id,
             t.created_at, t.updated_at, t.escalation_level,
             t.ai_summary, t.conversation_id, t.turnaround_at, t.on_hold_since,
-            t.total_hold_seconds, t.hold_reason, t.hold_until, t.closed_at, t.first_agent_reply_at,
+            t.total_hold_seconds, t.hold_reason, t.hold_with, t.hold_until, t.closed_at, t.first_agent_reply_at,
             t.participant_emails,
             (SELECT string_agg(au.name, ', ' ORDER BY ta.assigned_at, ta.id)
                FROM ticket_assignees ta JOIN users au ON au.id = ta.user_id
@@ -755,4 +760,72 @@ export async function getLatestDailyStatus(): Promise<DailyStatus | null> {
        LIMIT 1`
   );
   return row[0] ?? null;
+}
+
+// Inline images saved at intake (db/012), keyed by message id -> lower(cid) -> cid.
+export async function getTicketInlineImages(ticketId: number): Promise<Map<number, Map<string, string>>> {
+  const out = new Map<number, Map<string, string>>();
+  let rows: { message_id: number; content_id: string }[] = [];
+  try {
+    rows = await query<{ message_id: number; content_id: string }>(
+      `SELECT i.message_id, i.content_id FROM message_inline_images i
+         JOIN messages m ON m.id = i.message_id
+        WHERE m.ticket_id = $1`,
+      [ticketId]
+    );
+  } catch (e) {
+    if ((e as { code?: string }).code !== "42P01") throw e; // table not migrated yet
+  }
+  for (const r of rows) {
+    if (!out.has(r.message_id)) out.set(r.message_id, new Map());
+    out.get(r.message_id)!.set(r.content_id.toLowerCase(), r.content_id);
+  }
+  return out;
+}
+
+// On-hold tickets by who they wait on, for the "On hold with" tile on the ticket
+// list. Uses the list filters except status and hold (the tile is the hold view),
+// so it always shows every party. names: who exactly, for the hover text.
+export async function getHoldBreakdown(f: TicketFilters) {
+  const { clause, params } = buildWhere({ ...f, status: ["on_hold"], hold: undefined });
+  return query<{ reason: string; count: string; names: string | null }>(
+    `SELECT COALESCE(t.hold_reason, 'unspecified') AS reason, COUNT(*) AS count,
+            string_agg(DISTINCT t.hold_with, ', ') AS names
+       FROM tickets t ${clause}
+      GROUP BY 1 ORDER BY COUNT(*) DESC`,
+    params
+  );
+}
+
+// Files attached to the ticket's emails (db/013), keyed by message id. has_data =
+// false when only the name was kept (too large, a forwarded email, a cloud link).
+export interface MessageAttachment {
+  id: number;
+  name: string;
+  content_type: string;
+  size_bytes: number;
+  kind: string;
+  has_data: boolean;
+}
+export async function getTicketAttachments(ticketId: number): Promise<Map<number, MessageAttachment[]>> {
+  const out = new Map<number, MessageAttachment[]>();
+  let rows: (MessageAttachment & { message_id: number })[] = [];
+  try {
+    rows = await query<MessageAttachment & { message_id: number }>(
+      `SELECT a.id, a.message_id, a.name, a.content_type, a.size_bytes::float8 AS size_bytes, a.kind,
+              (a.data IS NOT NULL) AS has_data
+         FROM message_attachments a
+         JOIN messages m ON m.id = a.message_id
+        WHERE m.ticket_id = $1
+        ORDER BY a.id`,
+      [ticketId]
+    );
+  } catch (e) {
+    if ((e as { code?: string }).code !== "42P01") throw e; // table not migrated yet
+  }
+  for (const r of rows) {
+    if (!out.has(r.message_id)) out.set(r.message_id, []);
+    out.get(r.message_id)!.push(r);
+  }
+  return out;
 }

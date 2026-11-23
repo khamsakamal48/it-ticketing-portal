@@ -18,6 +18,11 @@ export async function getConfig(): Promise<SystemConfig> {
   return value;
 }
 
+// After the portal writes a setting, so the next read sees it at once.
+export function clearConfigCache(): void {
+  cache = null;
+}
+
 export async function getConfigValue(key: string, fallback = ""): Promise<string> {
   const cfg = await getConfig();
   return cfg[key] ?? fallback;

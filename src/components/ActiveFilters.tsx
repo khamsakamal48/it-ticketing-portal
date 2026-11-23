@@ -13,7 +13,7 @@ interface Agent {
 // `view` are deliberately excluded — they're not filters.
 const CHIP_KEYS = [
   "q", "status", "priority", "owner", "intent", "sentiment",
-  "escalated", "requester", "agebucket", "minageh", "from", "to",
+  "escalated", "requester", "agebucket", "minageh", "hold", "from", "to",
 ] as const;
 
 const cap = (s: string) => s.charAt(0).toUpperCase() + s.slice(1);
@@ -21,7 +21,14 @@ const titleize = (s: string) => s.replace(/_/g, " ").split(" ").map(cap).join(" 
 
 // Removable pills for every active filter — covers dashboard drill-down dims
 // (intent/sentiment/requester/age) that have no slide-out control.
-export function ActiveFilters({ agents }: { agents: Agent[] }) {
+export function ActiveFilters({
+  agents,
+  holdLabels = {},
+}: {
+  agents: Agent[];
+  /** hold_reason -> this team's wording (Donor, Fundraiser…), for the "On hold with" chip. */
+  holdLabels?: Record<string, string>;
+}) {
   const router = useRouter();
   const pathname = usePathname();
   const sp = useSearchParams();
@@ -67,6 +74,7 @@ export function ActiveFilters({ agents }: { agents: Agent[] }) {
       case "requester": return `Requester: ${value}`;
       case "agebucket": return `Age: ${value}`;
       case "minageh": return `Aging > ${value}h`;
+      case "hold": return `On hold with: ${holdLabels[value] ?? titleize(value)}`;
       case "from": return `From: ${value}`;
       case "to": return `To: ${value}`;
       default: return null;
@@ -74,7 +82,7 @@ export function ActiveFilters({ agents }: { agents: Agent[] }) {
   };
 
   // These dims can hold multiple comma-separated values → one chip per value.
-  const MULTI_KEYS = new Set(["status", "priority", "owner", "sentiment"]);
+  const MULTI_KEYS = new Set(["status", "priority", "owner", "sentiment", "hold"]);
 
   const chips: { id: string; text: string; onRemove: () => void }[] = [];
   for (const key of CHIP_KEYS) {

@@ -16,7 +16,6 @@ import {
 import type { ParsedOriginal } from "@/lib/forwarded-email";
 import {
   UNDO_CLOSE_WINDOW_SECONDS,
-  HOLD_REASONS,
   HOLD_DURATION_DAYS,
   HOLD_DURATION_LABELS,
 } from "@/lib/ticket-rules";
@@ -67,6 +66,10 @@ export function TicketActions({
   participants,
   mailboxLabel,
   multiAssignee = false,
+  holdOptions,
+  holdAssignees = [],
+  requesterLabel = "",
+  holdEmailsRequester = true,
 }: {
   ticketId: number;
   updatedAt: string;
@@ -89,6 +92,14 @@ export function TicketActions({
   hasRequesterEmail: boolean;
   /** To/CC of the customer's original email, minus the requester and the mailbox. */
   participants: string[];
+  /** Who a hold can be with, in this team's wording (holdReasonOptions). */
+  holdOptions: { value: string; label: string }[];
+  /** Current assignees, for a hold with a fundraiser. */
+  holdAssignees?: { id: number; name: string }[];
+  /** Requester name/email: what a hold with the requester records when left blank. */
+  requesterLabel?: string;
+  /** False when the On Hold email goes to the team only (hold_notify_requester_enabled). */
+  holdEmailsRequester?: boolean;
 }) {
   const router = useRouter();
   const [pending, startTransition] = useTransition();
@@ -110,6 +121,11 @@ export function TicketActions({
   // Required before switching to On Hold: who it waits on + how long.
   const [holdReason, setHoldReason] = useState("");
   const [holdDays, setHoldDays] = useState("");
+  // Who exactly: a fundraiser (user id) for assignee holds, a typed name otherwise.
+  const [holdWithName, setHoldWithName] = useState("");
+  const [holdWithUser, setHoldWithUser] = useState("");
+  const holdWithValid =
+    holdReason === "assignee" ? !!holdWithUser : holdReason === "vendor" ? holdWithName.trim().length > 0 : true;
   const [tat, setTat] = useState(toLocalInput(turnaroundAt));
   const holdPending = statusSel === "on_hold" && status !== "on_hold";
 
@@ -172,10 +188,15 @@ export function TicketActions({
     applyStatus(next);
   };
 
-  const cancelHold = () => {
-    setStatusSel(status);
+  const resetHold = () => {
     setHoldReason("");
     setHoldDays("");
+    setHoldWithName("");
+    setHoldWithUser("");
+  };
+  const cancelHold = () => {
+    setStatusSel(status);
+    resetHold();
   };
 
   const applyStatus = (next: string) => {
@@ -197,12 +218,18 @@ export function TicketActions({
           next,
           updatedAt,
           statusNote,
-          next === "on_hold" ? { reason: holdReason, days: Number(holdDays) } : undefined
+          next === "on_hold"
+            ? {
+                reason: holdReason,
+                days: Number(holdDays),
+                withName: holdWithName,
+                withUserId: holdReason === "assignee" ? Number(holdWithUser) : undefined,
+              }
+            : undefined
         ),
       () => {
         setStatusNote("");
-        setHoldReason("");
-        setHoldDays("");
+        resetHold();
         if (next === "closed") setUndoLeft(UNDO_CLOSE_WINDOW_SECONDS);
       }
     );
@@ -504,7 +531,8 @@ export function TicketActions({
             <option value="irrelevant">Irrelevant</option>
           </select>
           <p className="mt-1 text-xs text-subtle">
-            Closing requires an owner. On Hold pauses SLA alerts; Business/Vendor hold time is also
+            {multiAssignee ? "" : "Closing requires an owner. "}On Hold pauses SLA alerts;{" "}
+            {holdOptions.find((o) => o.value === "business")?.label ?? "Business"}/Vendor hold time is also
             excluded from turnaround. Irrelevant hides the ticket from dashboards.
             {status === "closed" && !canReopen && " Only a manager can reopen a closed ticket."}
           </p>
@@ -520,11 +548,15 @@ export function TicketActions({
                 className="input w-full"
                 value={holdReason}
                 disabled={pending}
-                onChange={(e) => setHoldReason(e.target.value)}
+                onChange={(e) => {
+                  setHoldReason(e.target.value);
+                  setHoldWithName("");
+                  setHoldWithUser("");
+                }}
               >
                 <option value="">Select…</option>
-                {Object.entries(HOLD_REASONS).map(([v, l]) => (
-                  <option key={v} value={v}>{l}</option>
+                {holdOptions.map((o) => (
+                  <option key={o.value} value={o.value}>{o.label}</option>
                 ))}
               </select>
             </div>
@@ -543,12 +575,58 @@ export function TicketActions({
                 ))}
               </select>
             </div>
+            {holdReason && (
+              <div className="col-span-2">
+                <label className="label" htmlFor="ta-hold-with">
+                  {holdReason === "assignee"
+                    ? "Which fundraiser"
+                    : holdReason === "vendor"
+                    ? "Vendor name"
+                    : holdReason === "business"
+                    ? `${holdOptions.find((o) => o.value === "business")?.label ?? "Requester"} name (optional)`
+                    : "Who on the team (optional)"}
+                </label>
+                {holdReason === "assignee" ? (
+                  holdAssignees.length ? (
+                    <select
+                      id="ta-hold-with"
+                      className="input w-full"
+                      value={holdWithUser}
+                      disabled={pending}
+                      onChange={(e) => setHoldWithUser(e.target.value)}
+                    >
+                      <option value="">Select…</option>
+                      {holdAssignees.map((a) => (
+                        <option key={a.id} value={a.id}>{a.name}</option>
+                      ))}
+                    </select>
+                  ) : (
+                    <p id="ta-hold-with" className="text-xs text-critical">
+                      Add the fundraiser as an assignee first, then put the ticket on hold.
+                    </p>
+                  )
+                ) : (
+                  <input
+                    id="ta-hold-with"
+                    className="input w-full"
+                    value={holdWithName}
+                    maxLength={120}
+                    disabled={pending}
+                    onChange={(e) => setHoldWithName(e.target.value)}
+                    placeholder={holdReason === "business" ? requesterLabel || "Defaults to the requester" : ""}
+                  />
+                )}
+                <p className="mt-1 text-xs text-subtle">Shown when someone hovers over the ticket in the list.</p>
+              </div>
+            )}
           </div>
         )}
 
         {/* Status note (sent to requester + manager on On Hold / turnaround) */}
         <div>
-          <label className="label" htmlFor="ta-status-note">Note for requester</label>
+          <label className="label" htmlFor="ta-status-note">
+            {holdPending && !holdEmailsRequester ? "Note for the team (not sent to the requester)" : "Note for requester"}
+          </label>
           <textarea
             id="ta-status-note"
             className="input w-full"
@@ -556,13 +634,17 @@ export function TicketActions({
             value={statusNote}
             disabled={pending}
             onChange={(e) => setStatusNote(e.target.value)}
-            placeholder="Included in the email when you set On Hold or a turnaround date…"
+            placeholder={
+              holdEmailsRequester
+                ? "Included in the email when you set On Hold or a turnaround date…"
+                : "On Hold: emailed to the coordinator and managers only. Turnaround date: also sent to the requester."
+            }
           />
           {holdPending && (
             <div className="mt-2 flex gap-2">
               <button
                 className="btn-primary flex-1"
-                disabled={pending || !holdReason || !holdDays}
+                disabled={pending || !holdReason || !holdDays || !holdWithValid}
                 onClick={() => applyStatus("on_hold")}
               >
                 {pending ? "Saving…" : "Put on hold"}

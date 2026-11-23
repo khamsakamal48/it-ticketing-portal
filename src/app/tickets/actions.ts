@@ -22,6 +22,7 @@ import {
   assertOwnerRequiredForReply,
   assertCanReopen,
   assertHold,
+  HOLD_WITH_MAX,
   isValidPriority,
   isValidStatus,
   RuleError,
@@ -179,20 +180,21 @@ export async function reassignTicket(
 
 // Accrues elapsed hold time into total_hold_seconds for the row, as part of a
 // status-leaving UPDATE. When the row is NOT on hold this adds 0, so it is
-// always safe to include. Agent holds (IT's own wait) are NOT accrued — that
-// time counts against TAT. NULL reason = legacy hold, accrued as before.
+// always safe to include. Agent and assignee holds (the team's own wait, or a
+// fundraiser's) are NOT accrued — that time counts against TAT. NULL reason =
+// legacy hold, accrued as before. Same list as INTERNAL_HOLD_REASONS.
 // Mirrored in the n8n "Close and Assign Ticket" node. Does NOT touch on_hold_since — callers that also need
 // to assign on_hold_since must do so once, in a single SET clause, to avoid a
 // "multiple assignments to same column" error.
 const ACCRUE_HOLD_SECONDS =
   `total_hold_seconds = total_hold_seconds + CASE WHEN on_hold_since IS NOT NULL ` +
-  `AND hold_reason IS DISTINCT FROM 'agent' ` +
+  `AND COALESCE(hold_reason, '') NOT IN ('agent', 'assignee') ` +
   `THEN EXTRACT(EPOCH FROM (NOW() - on_hold_since))::bigint ELSE 0 END`;
 
 // Closes any open hold span (adds elapsed hold time to total_hold_seconds and
 // clears on_hold_since) for the row, as part of a status-leaving UPDATE. When
 // the row is NOT on hold this adds 0, so it is always safe to include.
-const ACCRUE_HOLD = `${ACCRUE_HOLD_SECONDS}, on_hold_since = NULL, hold_reason = NULL, hold_until = NULL`;
+const ACCRUE_HOLD = `${ACCRUE_HOLD_SECONDS}, on_hold_since = NULL, hold_reason = NULL, hold_until = NULL, hold_with = NULL`;
 
 // Inserts an agent's customer-visible status note (echoed into the n8n
 // notification email). Skipped silently when the note is blank.
@@ -397,25 +399,66 @@ export async function correctRequester(
   );
 }
 
+// Who the hold is with, stored on tickets.hold_with and shown on hover in the list.
+// assignee: must be a current assignee (by user id), stored by name.
+// vendor: a typed name is required. business: the requester when left empty.
+// agent (the team): optional.
+async function resolveHoldWith(
+  client: PoolClient,
+  ticketId: number,
+  hold: { reason: string; withName?: string; withUserId?: number }
+): Promise<string | null> {
+  const typed = String(hold.withName ?? "").replace(/\s+/g, " ").trim().slice(0, HOLD_WITH_MAX);
+  if (hold.reason === "assignee") {
+    const r = await client.query<{ name: string }>(
+      `SELECT u.name FROM ticket_assignees ta JOIN users u ON u.id = ta.user_id
+        WHERE ta.ticket_id = $1 AND ta.user_id = $2 AND ta.removed_at IS NULL`,
+      [ticketId, Number(hold.withUserId) || 0]
+    );
+    if (!r.rows[0]) throw new RuleError("Pick the fundraiser on this ticket that the hold is with.");
+    return r.rows[0].name;
+  }
+  if (hold.reason === "vendor") {
+    if (!typed) throw new RuleError("Name the vendor the hold is with.");
+    return typed;
+  }
+  if (hold.reason === "business" && !typed) {
+    const r = await client.query<{ label: string | null }>(
+      `SELECT COALESCE(NULLIF(trim(c.name), ''), c.email) AS label
+         FROM tickets t JOIN contacts c ON c.id = t.contact_id WHERE t.id = $1`,
+      [ticketId]
+    );
+    return r.rows[0]?.label ?? null;
+  }
+  return typed || null;
+}
+
 // ---------------- Status change ----------------
 // `note` is optional and only meaningful when moving to on_hold — it is stored
 // as a status note and echoed into the requester/manager email. `hold` is
-// required when moving to on_hold: who it waits on + a duration from the list.
+// required when moving to on_hold: who it waits on + a duration from the list,
+// plus who exactly (hold_with): the fundraiser (withUserId, a current assignee),
+// the vendor's name, or the requester (filled in when left empty).
 export async function changeStatus(
   ticketId: number,
   newStatus: string,
   expectedUpdatedAt: string,
   note?: string,
-  hold?: { reason: string; days: number }
+  hold?: { reason: string; days: number; withName?: string; withUserId?: number }
 ): Promise<ActionResult> {
   return wrap(
     (async () => {
       const actor = await requireActor();
       if (!isValidStatus(newStatus)) throw new RuleError("Invalid status.");
-      if (newStatus === "on_hold") assertHold(hold?.reason, hold?.days);
       // Coordinator-led teams (multi-assignee): the coordinator answers and closes
       // tickets that need no fundraiser, so no assignee is required.
       const multiAssignee = await flag("multiAssignee");
+      if (newStatus === "on_hold")
+        assertHold(
+          hold?.reason,
+          hold?.days,
+          multiAssignee ? ["business", "assignee", "vendor", "agent"] : ["business", "vendor", "agent"]
+        );
       const effect = await withTransaction(async (client) => {
         const t = await lockTicket(client, ticketId, expectedUpdatedAt);
         assertTransition(t.status, newStatus);
@@ -428,6 +471,7 @@ export async function changeStatus(
             await closedByActorRecently(client, ticketId, actor.id)
           );
         if (t.status === newStatus) return null;
+        const holdWith = newStatus === "on_hold" ? await resolveHoldWith(client, ticketId, hold!) : null;
         if (newStatus === "closed") {
           await closeTicketRow(client, ticketId);
         } else {
@@ -445,9 +489,10 @@ export async function changeStatus(
                     on_hold_since = CASE WHEN $1::text = 'on_hold' THEN NOW() ELSE NULL END,
                     hold_reason = CASE WHEN $1::text = 'on_hold' THEN $3::text ELSE NULL END,
                     hold_until = CASE WHEN $1::text = 'on_hold'
-                                      THEN NOW() + ($4::int * INTERVAL '1 day') ELSE NULL END
+                                      THEN NOW() + ($4::int * INTERVAL '1 day') ELSE NULL END,
+                    hold_with = CASE WHEN $1::text = 'on_hold' THEN $5::text ELSE NULL END
                WHERE id = $2`,
-            [newStatus, ticketId, hold?.reason ?? null, hold?.days ?? null]
+            [newStatus, ticketId, hold?.reason ?? null, hold?.days ?? null, holdWith]
           );
         }
         if (newStatus === "on_hold") await insertStatusNote(client, ticketId, note);
@@ -470,11 +515,15 @@ export async function changeStatus(
           action,
           field: "status",
           oldValue: t.status,
-          newValue: newStatus === "on_hold" ? `on_hold (${hold!.reason}, ${hold!.days}d)` : newStatus,
+          newValue:
+            newStatus === "on_hold"
+              ? `on_hold (${hold!.reason}${holdWith ? `: ${holdWith}` : ""}, ${hold!.days}d)`
+              : newStatus,
         });
         // Carry context out of the txn so we can notify n8n AFTER commit.
         if (action === "close") return { kind: "close" as const, contactEmail: t.contact_email, subject: t.subject };
-        if (action === "hold") return { kind: "hold" as const, contactEmail: t.contact_email, subject: t.subject };
+        if (action === "hold")
+          return { kind: "hold" as const, contactEmail: t.contact_email, subject: t.subject, holdWith };
         return null;
       });
 
@@ -494,11 +543,12 @@ export async function changeStatus(
           actorEmail: actor.email,
           holdReason: hold!.reason,
           holdDays: hold!.days,
+          holdWith: effect.holdWith,
         });
         if (result.configured && !result.sent)
           return {
             warning:
-              "Ticket put on hold, but the notification email could not be sent. Notify the requester/manager manually.",
+              "Ticket put on hold, but the notification email could not be sent. Let the people who need to know yourself.",
           };
       }
     })(),
@@ -782,10 +832,12 @@ export async function setAssignees(
         const added: { rowId: number; userId: number; name: string }[] = [];
         for (const userId of toAdd) {
           // The actor adding themselves needs no email: mark it notified up front.
+          // Explicit ::int casts: without them `$2 = $3` makes Postgres infer
+          // text for $2, conflicting with the integer user_id column (42P08).
           const { rows } = await client.query<{ id: number; name: string }>(
             `INSERT INTO ticket_assignees (ticket_id, user_id, assigned_by, notified_at)
-             VALUES ($1, $2, $3, CASE WHEN $2 = $3 THEN NOW() END)
-             RETURNING id, (SELECT name FROM users WHERE id = $2) AS name`,
+             VALUES ($1::int, $2::int, $3::int, CASE WHEN $2::int = $3::int THEN NOW() END)
+             RETURNING id, (SELECT name FROM users WHERE id = $2::int) AS name`,
             [ticketId, userId, actor.id]
           );
           added.push({ rowId: rows[0].id, userId, name: rows[0].name });

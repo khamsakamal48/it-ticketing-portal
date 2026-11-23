@@ -26,12 +26,29 @@ const PRIORITY: Record<string, { text: string; dot: string; bg: string }> = {
 
 const FALLBACK = { text: "text-muted", dot: "bg-muted", bg: "bg-surface-2" };
 
-export function StatusBadge({ status }: { status: string }) {
+// On Hold badges can say who the ticket waits on (`holdParty`, e.g. "Donor") and
+// carry the exact name in a hover tooltip (`holdWith`).
+export function StatusBadge({
+  status,
+  holdParty,
+  holdWith,
+}: {
+  status: string;
+  holdParty?: string | null;
+  holdWith?: string | null;
+}) {
   const s = STATUS[status] ?? FALLBACK;
+  const party = status === "on_hold" && holdParty ? holdParty : null;
+  const tip = party ? `On hold with ${party}${holdWith ? `: ${holdWith}` : ""}` : undefined;
   return (
-    <span className={`badge ring-1 ring-inset ring-current/15 ${s.bg} ${s.text} capitalize`}>
+    <span
+      className={`badge ring-1 ring-inset ring-current/15 ${s.bg} ${s.text} ${party ? "" : "capitalize"}`}
+      title={tip}
+      aria-label={tip}
+    >
       <span className={`dot ${s.dot}`} />
       {STATUS_LABEL[status] ?? status}
+      {party && <span className="font-normal opacity-80">· {party}</span>}
     </span>
   );
 }

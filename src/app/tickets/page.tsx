@@ -6,7 +6,10 @@ import { ActiveFilters } from "@/components/ActiveFilters";
 import { TicketCard } from "@/components/TicketCard";
 import { StatusBadge, PriorityBadge } from "@/components/badges";
 import { parseFilters } from "@/lib/filters";
-import { listTickets, getActiveAgents } from "@/lib/queries";
+import { listTickets, getActiveAgents, getHoldBreakdown } from "@/lib/queries";
+import { holdReasonOptions } from "@/lib/ticket-rules";
+import { getDeployment } from "@/lib/deployment";
+import { HoldTile } from "@/components/HoldTile";
 import { getConfigValue, flag } from "@/lib/config";
 import { fmtIST } from "@/lib/datetime";
 import { encodeTicketId, encodeAgentId } from "@/lib/opaque-id";
@@ -53,11 +56,16 @@ export default async function TicketsPage({
   ).toString();
   const backTo = listQs ? `?back=${encodeURIComponent(listQs)}` : "";
 
-  const [{ rows, total }, agents, slaRaw] = await Promise.all([
+  const [{ rows, total }, agents, slaRaw, holdRows] = await Promise.all([
     listTickets(f, page, PAGE_SIZE, sort, dir),
     getActiveAgents(),
     getConfigValue("sla_escalation_hours", "48"),
+    getHoldBreakdown(f),
   ]);
+  // Team wording for hold parties (Donor / Fundraiser on coordinator-led teams).
+  const holdOptions = holdReasonOptions(multiAssignee, getDeployment().teamShort);
+  const holdLabels: Record<string, string> = Object.fromEntries(holdOptions.map((o) => [o.value, o.label]));
+  holdLabels.unspecified = "Not specified";
   // Escalation SLA is the resolution-style threshold an open/closed duration breaches.
   const slaHours = Number(slaRaw) || 48;
 
@@ -79,7 +87,18 @@ export default async function TicketsPage({
           view={view}
         />
 
-        <ActiveFilters agents={agents.map((a) => ({ id: encodeAgentId(a.id), name: a.name }))} />
+        <ActiveFilters
+          agents={agents.map((a) => ({ id: encodeAgentId(a.id), name: a.name }))}
+          holdLabels={holdLabels}
+        />
+
+        <HoldTile
+          parties={[...holdOptions.map((o) => o.value as string), "unspecified"].map((reason) => {
+            const r = holdRows.find((x) => x.reason === reason);
+            return { reason, label: holdLabels[reason], count: Number(r?.count ?? 0), names: r?.names ?? null };
+          })}
+          active={f.hold ?? []}
+        />
 
         {rows.length === 0 ? (
           <div className="card px-4 py-16 text-center text-subtle">
@@ -88,7 +107,7 @@ export default async function TicketsPage({
         ) : view === "card" ? (
           <div className="card divide-y divide-border overflow-hidden p-0">
             {rows.map((t) => (
-              <TicketCard key={t.id} t={t} slaHours={slaHours} backTo={backTo} />
+              <TicketCard key={t.id} t={t} slaHours={slaHours} backTo={backTo} holdLabels={holdLabels} />
             ))}
           </div>
         ) : (
@@ -126,7 +145,13 @@ export default async function TicketsPage({
                           </span>
                         )}
                       </td>
-                      <td className="px-4 py-3"><StatusBadge status={t.status} /></td>
+                      <td className="px-4 py-3">
+                        <StatusBadge
+                          status={t.status}
+                          holdParty={t.hold_reason ? holdLabels[t.hold_reason] ?? t.hold_reason : null}
+                          holdWith={t.hold_with}
+                        />
+                      </td>
                       <td className="px-4 py-3"><PriorityBadge priority={t.priority} /></td>
                       <td className="px-4 py-3 text-muted">
                         {(multiAssignee ? t.assignees : t.owner_name) ?? <span className="text-critical">Unassigned</span>}

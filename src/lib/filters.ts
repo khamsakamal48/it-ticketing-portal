@@ -51,5 +51,11 @@ export function parseFilters(sp: Record<string, string | string[] | undefined>):
   if (minageh && /^\d+$/.test(minageh)) f.minAgeH = Number(minageh);
   const agebucket = get("agebucket");
   if (agebucket) f.ageBucket = agebucket;
+  // On hold with: business | vendor | agent | assignee | unspecified (whitelisted).
+  const hold = get("hold");
+  if (hold) {
+    const ok = splitCsv(hold).filter((h) => ["business", "vendor", "agent", "assignee", "unspecified"].includes(h));
+    if (ok.length) f.hold = ok;
+  }
   return f;
 }

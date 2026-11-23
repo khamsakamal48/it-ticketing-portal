@@ -14,6 +14,6 @@
 ALTER TABLE tickets ADD COLUMN IF NOT EXISTS hold_reason TEXT;
 ALTER TABLE tickets DROP CONSTRAINT IF EXISTS tickets_hold_reason_check;
 ALTER TABLE tickets ADD CONSTRAINT tickets_hold_reason_check
-  CHECK (hold_reason IS NULL OR hold_reason IN ('business', 'vendor', 'agent'));
+  CHECK (hold_reason IS NULL OR hold_reason IN ('business', 'vendor', 'agent', 'assignee'));  -- 'assignee': db/013
 ALTER TABLE tickets ADD COLUMN IF NOT EXISTS hold_until TIMESTAMPTZ;
 ALTER TABLE tickets ADD COLUMN IF NOT EXISTS closed_no_response BOOLEAN NOT NULL DEFAULT false;

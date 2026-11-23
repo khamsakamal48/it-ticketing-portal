@@ -42,6 +42,8 @@ const statements = [
   // Admin page "Add agent" (assignee-only users, can_login = false).
   `GRANT INSERT, UPDATE (name, is_active) ON users TO ${r}`,
   `GRANT SELECT, UPDATE ON ticket_feedback TO ${r}`,
+  // Configuration page team settings (db/011): allow-listed keys only.
+  `GRANT EXECUTE ON FUNCTION set_team_setting(text, text) TO ${r}`,
   `GRANT USAGE, SELECT ON ALL SEQUENCES IN SCHEMA public TO ${r}`,
   `ALTER DEFAULT PRIVILEGES IN SCHEMA public GRANT SELECT ON TABLES TO ${r}`,
 ];

@@ -32,10 +32,12 @@ export interface OnHoldNotification {
   note: string | null;
   /** Portal user who put the ticket on hold. */
   actorEmail: string;
-  /** Who the ticket waits on: business | vendor | agent. Named in the email. */
+  /** Who the ticket waits on: business | vendor | agent | assignee. Named in the email. */
   holdReason: string;
   /** Hold duration picked by the agent, in days. */
   holdDays: number;
+  /** Who the hold is with (tickets.hold_with): fundraiser, vendor or requester name. */
+  holdWith: string | null;
 }
 
 export interface TurnaroundNotification {

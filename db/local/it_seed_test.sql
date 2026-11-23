@@ -27,7 +27,8 @@ INSERT INTO system_config (config_key, config_value, description) VALUES
   ('sla_escalation_l3_hours', '48', 'Hours before Level-3 escalation to senior management'),
   ('sla_first_response_hours', '23', 'Hours before first response SLA breach'),
   ('sla_response_gap_hours', '23', 'Hours before response gap SLA breach'),
-  ('team_distribution_email', 'it.operations-test@iitbacr.com', 'Team distribution list email')
+  ('team_distribution_email', 'it.operations-test@iitbacr.com', 'Team distribution list email'),
+  ('inline_images_enabled', 'true', 'Re-attach inline screenshots to new-ticket alerts (true/false)')
 ON CONFLICT (config_key) DO UPDATE SET config_value = EXCLUDED.config_value;
 
 INSERT INTO users (name, email, timezone, role) VALUES

@@ -4,7 +4,6 @@
 --   psql -v test_mailbox=<scholarship TEST mailbox> -v webhook_token=<N8N_WEBHOOK_TOKEN> -f db/local/scholarship_seed_test.sql
 
 INSERT INTO system_config (config_key, config_value, description) VALUES
-  ('auto_ack_enabled', 'true', 'Enable auto-acknowledgement emails'),
   ('business_days', 'Mon,Tue,Wed,Thu,Fri', 'Business days'),
   ('business_hours_end', '18:30', 'Business hours end time (HH:MM)'),
   ('business_hours_start', '09:30', 'Business hours start time (HH:MM)'),
@@ -33,7 +32,19 @@ INSERT INTO system_config (config_key, config_value, description) VALUES
   ('manual_reminder_enabled', 'true', 'Send reminder button (true/false)'),
   ('agent_email_mode', 'coordinator', 'direct = IT behaviour; coordinator = fundraiser emails are internal notes + coordinator alert, only the coordinator answers donors'),
   ('hold_close_prompt_enabled', 'false', 'Close prompt in hold reminder 2 and level-24 notice (true/false)'),
-  ('default_assignee_emails', 'kamal.hamza+lead1@iitbacr.com', 'Comma-separated emails auto-assigned to new tickets (team leads)')
+  ('default_assignee_emails', 'kamal.hamza+lead1@iitbacr.com', 'Comma-separated emails auto-assigned to new tickets (team leads)'),
+  ('default_assignees_enabled', 'true', 'Add default_assignee_emails to new tickets (true/false); edited in the portal Configuration page'),
+  ('ack_enabled', 'true', 'Send the acknowledgement email for new tickets (true/false); edited in the portal Configuration page'),
+  ('ack_body_html', $ack$<p>Dear {first_name},</p>
+<p>Thank you so much for writing to us. We truly appreciate you taking the time to get in touch, and your support means a great deal to our students.</p>
+<p>Your message has reached our team, and one of our coordinators is already looking into it. We will get back to you personally as soon as we can.</p>
+<p>With warm regards,<br><strong>{org}</strong></p>$ack$, 'Acknowledgement email body (HTML, placeholders {first_name} {full_name} {ticket_id} {subject} {team} {org}); empty = IT built-in email'),
+  ('inline_images_enabled', 'true', 'Re-attach inline screenshots from the requester email to coordinator/assignee alerts (true/false)'),
+  ('email_attachments_enabled', 'true', 'Attach the files saved from donor/fundraiser emails to assignee alerts (true/false); over ~3 MB in total they are listed by name'),
+  ('hold_notify_requester_enabled', 'false', 'Email the donor when a ticket is put On Hold (true/false); false = coordinator + managers only. Edited in the portal Configuration page'),
+  ('email_brand_name', 'IIT Bombay', 'Donor-facing email wordmark and {org} placeholder; empty = no branding'),
+  ('email_brand_tagline', 'Indian Institute of Technology Bombay', 'Small line under the wordmark in donor-facing emails'),
+  ('email_brand_footer', 'IIT Bombay, Powai, Mumbai 400 076', 'Footer line of donor-facing emails')
 ON CONFLICT (config_key) DO UPDATE SET config_value = EXCLUDED.config_value;
 
 INSERT INTO users (name, email, timezone, role, can_login) VALUES

@@ -85,15 +85,50 @@ export function assertCanReopen(isManagerRole: boolean, isOwnRecentClose: boolea
 }
 
 // On Hold must say who the ticket is waiting on and for how long (team process,
-// 23 Sep 2026). business/vendor hold time is excluded from TAT; agent hold time
-// counts. Durations are a fixed list on purpose — free-form days invite
-// whatever number is convenient.
+// 23 Sep 2026). business/vendor hold time is excluded from TAT; agent and
+// assignee hold time counts (it is our own wait). Durations are a fixed list on
+// purpose — free-form days invite whatever number is convenient.
+//   business : the requester / approver (the donor on coordinator-led teams)
+//   vendor   : an outside vendor
+//   agent    : the team itself
+//   assignee : a fundraiser on the ticket (coordinator-led teams only, db/013)
 export const HOLD_REASONS = {
   business: "Business",
   vendor: "Vendor",
   agent: "Agent",
+  assignee: "Fundraiser",
 } as const;
 export type HoldReason = keyof typeof HOLD_REASONS;
+
+// Reasons that are internal waiting time: counted against turnaround, never
+// subtracted. Mirrored in actions.ts ACCRUE_HOLD_SECONDS and the n8n
+// "Close and Assign Ticket" node.
+export const INTERNAL_HOLD_REASONS: readonly string[] = ["agent", "assignee"];
+
+// Which reasons a deployment offers, in picker order, with its own wording.
+// Coordinator-led (multi-assignee) teams talk about donors and fundraisers.
+export function holdReasonOptions(multiAssignee: boolean, teamShort: string): { value: HoldReason; label: string }[] {
+  return multiAssignee
+    ? [
+        { value: "business", label: "Donor" },
+        { value: "assignee", label: "Fundraiser" },
+        { value: "vendor", label: "Vendor" },
+        { value: "agent", label: `${teamShort} team` },
+      ]
+    : [
+        { value: "business", label: HOLD_REASONS.business },
+        { value: "vendor", label: HOLD_REASONS.vendor },
+        { value: "agent", label: HOLD_REASONS.agent },
+      ];
+}
+
+export function holdReasonLabel(reason: string | null | undefined, multiAssignee: boolean, teamShort: string): string {
+  if (!reason) return "Not specified";
+  return holdReasonOptions(multiAssignee, teamShort).find((o) => o.value === reason)?.label
+    ?? HOLD_REASONS[reason as HoldReason] ?? reason;
+}
+
+export const HOLD_WITH_MAX = 120;
 
 export const HOLD_DURATION_DAYS = [2, 7, 14, 28] as const;
 export const HOLD_DURATION_LABELS: Record<number, string> = {
@@ -103,9 +138,13 @@ export const HOLD_DURATION_LABELS: Record<number, string> = {
   28: "4 weeks",
 };
 
-export function assertHold(reason: string | undefined, days: number | undefined): asserts reason is HoldReason {
-  if (!reason || !(reason in HOLD_REASONS))
-    throw new RuleError("Pick who the ticket is waiting on (Business, Vendor or Agent).");
+export function assertHold(
+  reason: string | undefined,
+  days: number | undefined,
+  allowed: readonly string[] = ["business", "vendor", "agent"]
+): asserts reason is HoldReason {
+  if (!reason || !(reason in HOLD_REASONS) || !allowed.includes(reason))
+    throw new RuleError("Pick who the ticket is waiting on.");
   if (!(HOLD_DURATION_DAYS as readonly number[]).includes(Number(days)))
     throw new RuleError("Pick how long to hold the ticket.");
 }

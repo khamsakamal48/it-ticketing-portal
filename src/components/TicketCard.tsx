@@ -34,10 +34,12 @@ export function TicketCard({
   t,
   slaHours,
   backTo = "",
+  holdLabels = {},
 }: {
   t: TicketRow;
   slaHours: number;
   backTo?: string; // encoded list querystring, round-tripped so Back keeps filters
+  holdLabels?: Record<string, string>; // hold_reason -> team wording
 }) {
   const requester = t.contact_email ?? "Unknown requester";
   const initial = (requester[0] ?? "?").toUpperCase();
@@ -77,7 +79,11 @@ export function TicketCard({
       {/* Main column */}
       <div className="min-w-0 flex-1">
         <div className="flex items-center gap-2">
-          <StatusBadge status={t.status} />
+          <StatusBadge
+            status={t.status}
+            holdParty={t.hold_reason ? holdLabels[t.hold_reason] ?? t.hold_reason : null}
+            holdWith={t.hold_with}
+          />
           {t.escalation_level > 0 && (
             <span className="badge bg-critical/10 text-critical ring-1 ring-inset ring-critical/15">
               <AlertTriangle size={11} /> escalated
