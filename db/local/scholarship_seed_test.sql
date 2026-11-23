@@ -34,7 +34,7 @@ INSERT INTO system_config (config_key, config_value, description) VALUES
   ('hold_close_prompt_enabled', 'false', 'Close prompt in hold reminder 2 and level-24 notice (true/false)'),
   ('default_assignee_emails', 'kamal.hamza+lead1@iitbacr.com', 'Comma-separated emails auto-assigned to new tickets (team leads)'),
   ('default_assignees_enabled', 'true', 'Add default_assignee_emails to new tickets (true/false); edited in the portal Configuration page'),
-  ('ack_enabled', 'true', 'Send the acknowledgement email for new tickets (true/false); edited in the portal Configuration page'),
+  ('ack_enabled', 'false', 'Send the acknowledgement email for new tickets (true/false); off at launch, the coordinator can turn it on in the portal Configuration page'),
   ('ack_body_html', $ack$<p>Dear {first_name},</p>
 <p>Thank you so much for writing to us. We truly appreciate you taking the time to get in touch, and your support means a great deal to our students.</p>
 <p>Your message has reached our team, and one of our coordinators is already looking into it. We will get back to you personally as soon as we can.</p>
