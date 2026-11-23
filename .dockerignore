@@ -10,3 +10,5 @@ README.md
 .env.production
 .env.scholarship
 .env.bak-*
+deploy/backups
+deploy/scholarship.env

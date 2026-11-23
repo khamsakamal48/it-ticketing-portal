@@ -21,3 +21,7 @@ next-env.d.ts
 
 # JetBrains IDE settings (contain local database connection details)
 .idea/
+
+# deploy runtime state (server only)
+/deploy/backups/
+/deploy/scholarship.env
