@@ -16,7 +16,7 @@ Both databases live in the `n8n-postgres` container. The scripts talk to it with
 |---|---|---|
 | 0 | Claude | Export the prod n8n workflows to `backups/prod-<date>/n8n/` (not in this repo) |
 | 1 | Claude | Commit and push |
-| 2 | You | `git pull`, then `./deploy/deploy-prod.sh --check`, then `./deploy/deploy-prod.sh` |
+| 2 | You | `git pull`, then `sudo ./deploy/deploy-prod.sh --check`, then `sudo ./deploy/deploy-prod.sh` (prod uses rootful podman, so the containers are only visible to root) |
 | 3 | You | Create the two n8n credentials, the DNS + reverse-proxy entry and the Entra redirect URI (the script prints them) |
 | 4 | Claude | Deploy the n8n workflows: IT updated in place, Scholarship created. Validate, then smoke test |
 
@@ -58,7 +58,7 @@ that only exist after the migrations (`db/012`, `db/013`).
 ## Rollback
 
 ```sh
-./deploy/rollback-prod.sh                     # app only: previous image on :3000, Scholarship stopped, env restored
+sudo ./deploy/rollback-prod.sh                # app only: previous image on :3000, Scholarship stopped, env restored
 ./deploy/rollback-prod.sh --db-it             # + restore it_ticketing_system from the backup (loses data written since)
 ./deploy/rollback-prod.sh --drop-scholarship  # + drop the scholarship DB and roles (dumped first)
 ./deploy/rollback-prod.sh deploy/backups/<stamp>   # a specific backup instead of the latest

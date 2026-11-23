@@ -44,6 +44,7 @@ compose() {
 }
 psql_su() { "$RUNTIME" exec -i "$PG" psql -X -q -U "$PGSU" -v ON_ERROR_STOP=1 "$@"; }
 
+[ "$(id -u)" = 0 ] || [ "$RUNTIME" != podman ] || die "prod uses rootful podman: run with sudo"
 [ -f "$BK/state" ] || die "no backup state at $BK/state"
 BK=$(cd "$BK" && pwd -P)
 # shellcheck disable=SC1091
@@ -63,7 +64,8 @@ for f in .env .env.scholarship; do
 done
 "$RUNTIME" tag "$ROLLBACK_IMAGE" "$IMAGE:latest"
 # Free :IT_PORT whoever owns it, then start web from the previous image.
-CID=$("$RUNTIME" ps -a --format '{{.ID}} {{.Ports}}' | awk -v p=":$IT_PORT->" 'index($0,p){print $1; exit}')
+PS_PORTS=$("$RUNTIME" ps -a --format '{{.ID}} {{.Ports}}' 2>&1) || die "$RUNTIME ps failed: $PS_PORTS"
+CID=$(printf '%s\n' "$PS_PORTS" | awk -v p=":$IT_PORT->" 'index($0,p) && !f {print $1; f=1}')
 [ -n "$CID" ] && "$RUNTIME" rm -f "$CID" >/dev/null
 compose up -d --no-build --force-recreate web
 for _ in $(seq 1 50); do curl -fsS "http://127.0.0.1:$IT_PORT/api/health" >/dev/null 2>&1 && break; sleep 3; done

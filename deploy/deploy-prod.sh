@@ -34,6 +34,8 @@ ok()   { printf '   \033[32mok\033[0m %s\n' "$*"; }
 warn() { printf '   \033[33mWARN\033[0m %s\n' "$*"; }
 die()  { printf '\n\033[1;31mFAILED:\033[0m %s\n' "$*" >&2; exit 1; }
 trap 'die "line $LINENO: $BASH_COMMAND"' ERR
+# The repo is owned by the login user but the script runs as root (rootful podman).
+git() { command git -c safe.directory="$PWD" "$@"; }
 
 # psql inside the Postgres container over its local socket (no password needed).
 # psql_db <db> [role] [psql args...]   role = SET ROLE for the session (objects owned by it)
@@ -72,7 +74,11 @@ for c in curl openssl git; do command -v $c >/dev/null || die "$c not installed"
 [ -f "$COMPOSE_FILE" ] || die "$COMPOSE_FILE missing"
 grep -q 'web-scholarship:' "$COMPOSE_FILE" || die "$COMPOSE_FILE has no web-scholarship service (git pull?)"
 [ -f .env ] || die ".env (IT portal) missing"
-"$RUNTIME" ps --format '{{.Names}}' | grep -qx "$PG" || die "Postgres container '$PG' is not running"
+PS_NAMES=$("$RUNTIME" ps --format '{{.Names}}' 2>&1) || die "$RUNTIME ps failed: $PS_NAMES"
+if ! printf '%s\n' "$PS_NAMES" | grep -qx "$PG"; then
+  [ "$(id -u)" != 0 ] && [ "$RUNTIME" = podman ] && die "Postgres container '$PG' not visible to $(id -un). Prod uses rootful podman: run with sudo."
+  die "Postgres container '$PG' is not running"
+fi
 [ "$(q "$IT_DB" 'select 1')" = 1 ] || die "cannot query $IT_DB as $PGSU"
 ok "postgres: $PG, superuser $PGSU, IT db reachable"
 for k in DATABASE_URL AUTH_SECRET AUTH_MICROSOFT_ENTRA_ID_ID AUTH_MICROSOFT_ENTRA_ID_SECRET AUTH_MICROSOFT_ENTRA_ID_ISSUER \
@@ -82,7 +88,8 @@ done
 COMMIT=$(git rev-parse --short HEAD)
 [ -z "$(git status --porcelain --untracked-files=no)" ] || warn "tracked files changed locally on the server (git status)"
 AVAIL=$(df -Pm . | awk 'NR==2{print $4}'); [ "$AVAIL" -gt 3000 ] || warn "only ${AVAIL} MB free disk (build needs ~2 GB)"
-OLD_CID=$("$RUNTIME" ps --format '{{.ID}} {{.Ports}}' | awk -v p=":$IT_PORT->" 'index($0,p){print $1; exit}')
+PS_PORTS=$("$RUNTIME" ps --format '{{.ID}} {{.Ports}}' 2>&1) || die "$RUNTIME ps failed: $PS_PORTS"
+OLD_CID=$(printf '%s\n' "$PS_PORTS" | awk -v p=":$IT_PORT->" 'index($0,p) && !f {print $1; f=1}')
 [ -n "$OLD_CID" ] && ok "current IT container: $OLD_CID" || warn "no container is publishing :$IT_PORT right now"
 ok "deploying commit $COMMIT"
 [ "$MODE" = "--check" ] && { say "Preflight passed (nothing changed)"; exit 0; }
