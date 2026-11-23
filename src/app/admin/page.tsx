@@ -7,6 +7,7 @@ import RemoveAgentButton from "./RemoveAgentButton";
 import DefaultAssigneesCard from "./DefaultAssigneesCard";
 import AckSettingsCard from "./AckSettingsCard";
 import HoldEmailCard from "./HoldEmailCard";
+import EscalationContactsCard from "./EscalationContactsCard";
 import { getDeployment } from "@/lib/deployment";
 
 export const dynamic = "force-dynamic";
@@ -132,6 +133,10 @@ export default async function AdminPage() {
             }}
           />
           <HoldEmailCard initialEnabled={holdEmailsRequester} />
+          <EscalationContactsCard
+            initialL2={config.manager_email ?? ""}
+            initialL3={config.senior_manager_email ?? ""}
+          />
         </div>
       )}
       </div>

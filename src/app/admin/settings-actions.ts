@@ -91,3 +91,40 @@ export async function saveHoldNotifyRequester(enabled: boolean): Promise<Setting
       : "Saved. On Hold emails go to the coordinator and managers only, never the requester.",
   };
 }
+
+// L2 / L3 escalation recipients (system_config manager_email / senior_manager_email),
+// read by the n8n SLA Monitor and status emails. L2 also always includes active users
+// with the manager role (the coordinator). Either list may be empty.
+const EMAIL_RE = /^[^\s@,;]+@[^\s@,;]+\.[^\s@,;]+$/;
+const MAX_RECIPIENTS = 10;
+
+function parseEmails(raw: string, label: string): { list: string[]; error?: string } {
+  const list = Array.from(
+    new Set(String(raw ?? "").split(/[,;\s]+/).map((e) => e.trim().toLowerCase()).filter(Boolean))
+  );
+  const bad = list.filter((e) => !EMAIL_RE.test(e));
+  if (bad.length) return { list, error: `${label}: "${bad[0]}" is not a valid email address.` };
+  if (list.length > MAX_RECIPIENTS) return { list, error: `${label}: at most ${MAX_RECIPIENTS} addresses.` };
+  return { list };
+}
+
+export async function saveEscalationContacts(l2: string, l3: string): Promise<SettingsResult> {
+  const denied = await guard();
+  if (denied) return denied;
+  const a = parseEmails(l2, "L2 managers");
+  if (a.error) return { ok: false, error: a.error };
+  const b = parseEmails(l3, "L3 senior managers");
+  if (b.error) return { ok: false, error: b.error };
+
+  await setSetting("manager_email", a.list.join(","));
+  await setSetting("senior_manager_email", b.list.join(","));
+  clearConfigCache();
+  revalidatePath("/admin");
+  return {
+    ok: true,
+    message:
+      b.list.length === 0
+        ? "Saved. No L3 recipients: overdue tickets escalate to L2 only."
+        : `Saved. ${a.list.length} L2 and ${b.list.length} L3 recipient${b.list.length === 1 ? "" : "s"}.`,
+  };
+}

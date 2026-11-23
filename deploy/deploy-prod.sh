@@ -91,11 +91,12 @@ ok "deploying commit $COMMIT"
 # --------------------------------------------------------------------------- 2
 say "2/7 Scholarship settings ($SCH_CONF)"
 touch "$SCH_CONF"; chmod 600 "$SCH_CONF"
-ask() {  # ask KEY "question" [default]
-  local cur; cur=$(envval "$SCH_CONF" "$1")
-  if [ -z "$cur" ]; then
+ask() {  # ask KEY "question" [default] [optional]   (an answered key is never asked again, even if blank)
+  local cur
+  if grep -q "^$1=" "$SCH_CONF"; then cur=$(envval "$SCH_CONF" "$1")
+  else
     read -r -p "   $2${3:+ [$3]}: " cur; cur=${cur:-${3:-}}
-    [ -n "$cur" ] || die "$1 is required"
+    [ -n "$cur" ] || [ "${4:-}" = optional ] || die "$1 is required"
     printf '%s=%s\n' "$1" "$cur" >> "$SCH_CONF"
   fi
   printf -v "$1" '%s' "$cur"
@@ -104,9 +105,10 @@ gen() { local cur; cur=$(envval "$SCH_CONF" "$1"); [ -n "$cur" ] || { cur=$(rand
 ask SCH_HOST "Scholarship portal hostname (no https://)"
 ask COORDINATOR_NAME "Coordinator full name"
 ask COORDINATOR_EMAIL "Coordinator email (signs in; gets 'input received' alerts)"
-ask MANAGER_EMAIL "L2 manager email"
-ask SENIOR_MANAGER_EMAIL "L3 senior manager email(s), comma-separated"
-ask DEFAULT_ASSIGNEE_EMAILS "Default assignee emails, comma-separated (can be edited later in the portal)" "$COORDINATOR_EMAIL"
+# The next three can be left blank: the coordinator sets them on the portal Configuration page.
+ask MANAGER_EMAIL "L2 manager email(s), comma-separated (Enter = coordinator sets it in the portal)" "" optional
+ask SENIOR_MANAGER_EMAIL "L3 senior manager email(s), comma-separated (Enter = coordinator sets it in the portal)" "" optional
+ask DEFAULT_ASSIGNEE_EMAILS "Default assignee emails, comma-separated (Enter = the coordinator; editable in the portal)" "$COORDINATOR_EMAIL"
 ask SCH_WEBHOOK_TOKEN "Scholarship webhook token (from Claude / n8n team file)"
 gen SCH_OWNER_PW; gen SCH_PORTAL_PW; gen SCH_AUTH_SECRET
 ok "settings complete"
@@ -189,6 +191,19 @@ if [ ! -f .env.scholarship ]; then
       .env.scholarship.example > .env.scholarship
   chmod 600 .env.scholarship; ok ".env.scholarship written"
 else ok ".env.scholarship exists (kept)"; fi
+# IT portal: list the Scholarship portal, so a Scholarship user who signs in at the IT
+# address is shown a link to their own portal on the access-denied page.
+SCH_LINK="{\"key\":\"scholarship\",\"name\":\"Scholarship\",\"url\":\"https://$SCH_HOST\"}"
+CUR_DIR=$(envval .env PORTAL_DIRECTORY)
+if [ -z "$CUR_DIR" ]; then
+  printf '\n# Other team portals (access-denied page links)\nPORTAL_DIRECTORY=[%s]\n' "$SCH_LINK" >> .env; ok ".env: PORTAL_DIRECTORY added (Scholarship link)"
+elif printf '%s' "$CUR_DIR" | grep -q '"scholarship"'; then ok ".env: PORTAL_DIRECTORY already lists Scholarship"
+else
+  NEW_DIR="${CUR_DIR%]},$SCH_LINK]"
+  [ "$CUR_DIR" = "[]" ] && NEW_DIR="[$SCH_LINK]"
+  grep -v '^PORTAL_DIRECTORY=' .env > .env.tmp && printf 'PORTAL_DIRECTORY=%s\n' "$NEW_DIR" >> .env.tmp && cat .env.tmp > .env && rm -f .env.tmp
+  ok ".env: Scholarship added to PORTAL_DIRECTORY"
+fi
 grep -q '<' .env.scholarship && warn ".env.scholarship still has <placeholders>: $(grep -o '<[^>]*>' .env.scholarship | sort -u | tr '\n' ' ')"
 
 # --------------------------------------------------------------------------- 7

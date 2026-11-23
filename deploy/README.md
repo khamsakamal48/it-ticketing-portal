@@ -29,8 +29,9 @@ that only exist after the migrations (`db/012`, `db/013`).
 
 1. **Preflight:** checks podman, the Postgres container, `.env` keys, disk space, and the
    container now on :3000. `--check` stops here and changes nothing.
-2. **Scholarship settings:** asks once for the hostname, coordinator, managers, default
-   assignees and the webhook token. Generates the DB passwords and `AUTH_SECRET`. Everything
+2. **Scholarship settings:** asks once for the hostname, the coordinator and the webhook
+   token. The L2/L3 manager emails and default assignees can be left blank (press Enter);
+   the coordinator sets them on the portal's Configuration page. Generates the DB passwords and `AUTH_SECRET`. Everything
    is saved in `deploy/scholarship.env` (mode 600, gitignored), so re-runs ask nothing.
 3. **Backup** to `deploy/backups/<stamp>/`:
    - `pg_dump` of `it_ticketing_system`, plus `scholarship` if it exists
@@ -49,6 +50,8 @@ that only exist after the migrations (`db/012`, `db/013`).
    - run the trigger tests (rolled back)
    - seed the config and the coordinator, once
    - write `.env.scholarship` from the example (Entra values copied from `.env`)
+   - add the Scholarship portal to IT's `PORTAL_DIRECTORY` in `.env`, so a Scholarship user
+     who signs in at the IT address is shown a link to their own portal
 7. **Swap:** recreate `web`, wait for `/api/health`. If it's unhealthy, the app is rolled
    back automatically. Then start `web-scholarship`.
 
